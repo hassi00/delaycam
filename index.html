@@ -100,7 +100,8 @@
   .pill[data-tone=bad]::before{background:var(--rec)}
 
   /* ---------- 表示側 ---------- */
-  #display{align-items:center;justify-content:center;background:#000}
+  /* 映像は上の表示（状態・番号）とパネルの間に収める */
+  #display{align-items:flex-start;justify-content:center;background:#000;padding-top:calc(env(safe-area-inset-top) + 64px)}
   #outWrap{position:relative;overflow:hidden;flex:none}
   #out{display:block;touch-action:none;transform-origin:0 0;will-change:transform}
   #selBox{position:fixed;display:none;border:2px solid var(--amber);background:rgba(255,181,71,.12);border-radius:6px;pointer-events:none}
@@ -152,7 +153,7 @@
   #btnMore{display:none}
   #btnMore.on{background:var(--paper);color:var(--ink)}
   /* スマホなど幅の狭い画面：普段は再生操作と遅延だけ。録画・ズーム等は「その他」で開く */
-  @media (max-width:760px){
+  @media (max-width:760px), (orientation:landscape) and (max-height:520px){
     #panel{left:8px;right:8px;bottom:calc(env(safe-area-inset-bottom) + 8px);padding:10px;gap:8px;border-radius:20px}
     #panel .btn{height:44px;padding:0 12px;font-size:15px}
     #panel .btn.icon{width:44px;padding:0}
@@ -173,16 +174,13 @@
   }
   /* スマホ横向き：パネルは右側に寄せ、映像は左側に収める */
   @media (orientation:landscape) and (max-height:520px){
-    #panel{left:auto;top:8px;right:8px;bottom:8px;width:min(330px,46vw);overflow-y:auto;align-content:flex-start}
-    #display{justify-content:flex-start}
+    #panel{left:auto;top:8px;right:8px;bottom:8px;width:min(400px,48vw);overflow-y:auto;align-content:flex-start}
+    #display{justify-content:flex-start;align-items:center;padding-top:0}
     #status{max-width:40vw}
-    #badge{right:auto;left:calc(min(330px,46vw) * 0 + 12px);top:auto;bottom:12px}
+    #badge{right:auto;left:12px;top:auto;bottom:12px}
     #seekVal{width:100%}
   }
-  /* 縦向き：映像はパネルの上に収める */
-  @media (orientation:portrait){
-    #display{align-items:flex-start;padding-top:calc(env(safe-area-inset-top) + 64px)}
-  }
+
 
   #saveBar{display:none;position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);width:min(360px,90vw);padding:26px 22px 20px;
     border-radius:28px;background:var(--panel);border:1.5px solid var(--line);text-align:center;box-shadow:0 24px 60px rgba(0,0,0,.5)}
@@ -277,7 +275,7 @@
     <li><i>2</i>撮る端末で「撮影側」を開き、番号を入力</li>
     <li><i>3</i>撮影側を置いて動き、表示側で確認</li>
   </ol>
-  <div class="ver">バージョン 0.7</div>
+  <div class="ver">バージョン 0.8</div>
 </div>
 
 <!-- ================= 表示側 ================= -->
@@ -287,7 +285,7 @@
   <button id="viewReset" class="btn" data-icon="full" onclick="resetView()"><span>全体を表示</span><b id="viewZoomVal"></b></button>
   <video id="recv" muted playsinline autoplay></video>
   <div id="status" class="pill" style="display:none"><span></span></div>
-  <div id="badge"><span id="recDot" class="pill">録画中</span><span id="badgeCode" class="pill"></span><span class="pill" id="verBadge">v0.7</span></div>
+  <div id="badge"><span id="recDot" class="pill">録画中</span><span id="badgeCode" class="pill"></span><span class="pill" id="verBadge">v0.8</span></div>
 
   <div id="panel" class="hidden">
     <div class="bar" id="seekRow">
@@ -305,7 +303,7 @@
       </div>
       <button id="btnLive" class="btn" data-icon="live" onclick="goLive()" aria-label="ライブに戻る"><span>ライブに戻る</span></button>
       <span class="grow"></span>
-      <button id="btnMore" class="btn icon" data-icon="more" onclick="toggleMore()" aria-label="その他の操作" aria-expanded="false"></button>
+      <button id="btnMore" class="btn" data-icon="more" onclick="toggleMore()" aria-expanded="false"><span>その他</span></button>
       <button class="btn icon" data-icon="down" onclick="setPanel(false)" aria-label="操作パネルを閉じる"></button>
     </div>
     <div class="bar">
@@ -628,6 +626,7 @@ function onRemoteStream(s){
   recv.play().catch(() => {});
   closeSetup();
   $('panel').classList.remove('hidden');
+  if (store('dlycam-more') === '1') toggleMore(true);
   setTimeout(fit, 0);
   setStatus('受信中');
 }
@@ -763,8 +762,8 @@ function fit(){
   const panel = $('panel');
   const open = !panel.classList.contains('hidden');
   const side = !portrait && innerHeight <= 520;   // スマホ横向き：パネルは右側
-  const top = portrait ? 64 : 0;
-  const ph = (portrait && open) ? panel.offsetHeight + 16 : 0;
+  const top = side ? 0 : 64;
+  const ph = (!side && open) ? panel.offsetHeight + 16 : 0;
   const pw = (side && open) ? panel.offsetWidth + 16 : 0;
   const s = Math.min(Math.max(80, innerWidth - pw) / out.width, Math.max(80, innerHeight - top - ph) / out.height);
   out.style.width = Math.floor(out.width * s) + 'px';
@@ -777,8 +776,10 @@ function setPanel(open){
   $('btnShowPanel').classList.toggle('show', !open && !!recv.srcObject);
   fit();
 }
-function toggleMore(){
-  const p = $('panel'), on = p.classList.toggle('expanded');
+function toggleMore(force){
+  const p = $('panel'), on = p.classList.toggle('expanded', typeof force === 'boolean' ? force : undefined);
+  store('dlycam-more', on ? '1' : '0');
+  if (on) setTimeout(() => { const m = p.querySelector('.more'); if (m && p.scrollHeight > p.clientHeight) m.scrollIntoView({ block: 'nearest' }); }, 0);
   $('btnMore').classList.toggle('on', on);
   $('btnMore').setAttribute('aria-expanded', on);
   fit();
