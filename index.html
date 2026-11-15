@@ -46,11 +46,28 @@
   .title{text-align:center}
   .title h1{margin:0;font-size:34px;font-weight:800;letter-spacing:.02em}
   .title p{margin:8px 0 0;color:var(--mute);font-size:16px}
-  .flow{display:flex;align-items:center;gap:14px}
+  .flow{display:flex;align-items:center;gap:14px;padding-top:14px}
   .card{display:flex;flex-direction:column;align-items:center;gap:10px;width:230px;padding:22px 18px 20px;
     border-radius:28px;background:var(--panel);border:1.5px solid var(--line);transition:transform .1s,border-color .15s}
   .card:active{transform:scale(.97);border-color:var(--amber)}
+  .card{position:relative}
   .card .art{width:150px;height:130px}
+  .badge{position:absolute;top:-14px;left:50%;transform:translateX(-50%);display:inline-flex;align-items:center;gap:6px;white-space:nowrap;
+    padding:5px 12px 5px 5px;border-radius:999px;background:var(--line);color:var(--paper);font-size:13px;font-weight:700}
+  .badge i{font-style:normal;width:22px;height:22px;border-radius:50%;background:var(--ink);display:flex;align-items:center;justify-content:center;font-family:var(--num)}
+  .badge.first{background:var(--amber);color:var(--ink)}
+  .badge.first i{background:var(--ink);color:var(--amber)}
+  .stepper{display:flex;gap:6px;flex-wrap:wrap;justify-content:center;font-size:13px}
+  .stepper span{padding:6px 12px;border-radius:999px;background:rgba(238,242,247,.06);color:var(--mute)}
+  .stepper .done{color:var(--ok)}
+  .stepper .now{background:var(--amber);color:var(--ink);font-weight:700}
+  #camStep{font-size:14px;color:var(--paper);font-weight:600}
+  #camStep b{display:inline-flex;width:22px;height:22px;border-radius:50%;background:var(--amber);color:var(--ink);align-items:center;justify-content:center;font-family:var(--num);margin-right:6px}
+  #zoomBar{position:absolute;left:50%;bottom:84px;transform:translateX(-50%);width:min(92%,440px);display:flex;align-items:center;gap:10px;padding:8px 12px;border-radius:999px;
+    background:rgba(15,27,45,.72);-webkit-backdrop-filter:blur(12px);backdrop-filter:blur(12px)}
+  #zoomBar .seg{background:none;padding:0}
+  #zoomBar .seg .btn{height:36px;padding:0 10px;font-size:14px}
+  #zoomVal{font-family:var(--num);font-weight:700;color:var(--amber);min-width:3.4em;text-align:right}
   .card b{font-size:24px;font-weight:800}
   .card small{color:var(--mute);font-size:15px}
   .lag{display:flex;flex-direction:column;align-items:center;gap:6px;color:var(--amber);font-size:13px;font-weight:700}
@@ -62,8 +79,9 @@
   .steps i{font-style:normal;width:24px;height:24px;border-radius:50%;background:var(--line);color:var(--paper);
     display:flex;align-items:center;justify-content:center;font-family:var(--num);font-weight:700;font-size:13px}
   @media (max-width:600px){
-    .flow{flex-direction:column;gap:8px}
-    .card{width:min(300px,86vw);flex-direction:row;gap:14px;padding:14px 18px;text-align:left}
+    .flow{flex-direction:column;gap:18px}
+    .card{width:min(300px,86vw);flex-direction:row;gap:14px;padding:20px 18px 14px;text-align:left}
+    .badge{left:16px;transform:none}
     .card .art{width:84px;height:76px}
     .card .txt{display:flex;flex-direction:column;gap:2px}
     .lag{flex-direction:row}
@@ -175,24 +193,8 @@
   </div>
 
   <div class="flow">
-    <button class="card" onclick="startCamera()">
-      <svg class="art" viewBox="0 0 150 130" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-        <rect x="52" y="8" width="46" height="74" rx="10"/>
-        <circle cx="75" cy="26" r="7"/>
-        <circle cx="88" cy="16" r="3.5" fill="#FF5A5F" stroke="none"/>
-        <path d="M75 82v12M75 94 50 124M75 94l25 30M75 94v30"/>
-        <path d="M30 34c-6 6-6 22 0 28M20 26c-11 11-11 33 0 44" stroke="#93A3BA" stroke-width="2.5"/>
-      </svg>
-      <span class="txt"><b>撮影側</b><small>カメラで撮って送る</small></span>
-    </button>
-
-    <div class="lag" aria-hidden="true">
-      <div class="clock">10<span style="font-size:11px">秒</span></div>
-      <svg viewBox="0 0 70 16" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M2 8h58" stroke-dasharray="2 7"/><path d="M58 2l8 6-8 6"/></svg>
-      <span>おくれて届く</span>
-    </div>
-
     <button class="card" onclick="startDisplay()">
+      <span class="badge first"><i>1</i>まずこちら</span>
       <svg class="art" viewBox="0 0 150 130" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
         <rect x="8" y="14" width="134" height="96" rx="12"/>
         <circle cx="75" cy="44" r="8" stroke="#FFB547"/>
@@ -200,14 +202,32 @@
         <text x="20" y="34" fill="#FFB547" stroke="none" font-size="13" font-weight="700" font-family="ui-rounded, -apple-system, sans-serif">-10.0</text>
         <path d="M55 122h40"/>
       </svg>
-      <span class="txt"><b>表示側</b><small>遅れた映像を見る</small></span>
+      <span class="txt"><b>表示側</b><small>見る端末で開く</small></span>
+    </button>
+
+    <div class="lag" aria-hidden="true">
+      <div class="clock">10<span style="font-size:11px">秒</span></div>
+      <svg viewBox="0 0 70 16" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M68 8H10" stroke-dasharray="2 7"/><path d="M12 2 4 8l8 6"/></svg>
+      <span>おくれて届く</span>
+    </div>
+
+    <button class="card" onclick="startCamera()">
+      <span class="badge"><i>2</i>次にこちら</span>
+      <svg class="art" viewBox="0 0 150 130" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <rect x="52" y="8" width="46" height="74" rx="10"/>
+        <circle cx="75" cy="26" r="7"/>
+        <circle cx="88" cy="16" r="3.5" fill="#FF5A5F" stroke="none"/>
+        <path d="M75 82v12M75 94 50 124M75 94l25 30M75 94v30"/>
+        <path d="M120 34c6 6 6 22 0 28M130 26c11 11 11 33 0 44" stroke="#93A3BA" stroke-width="2.5"/>
+      </svg>
+      <span class="txt"><b>撮影側</b><small>撮る端末で開く</small></span>
     </button>
   </div>
 
   <ol class="steps">
-    <li><i>1</i>見る端末で「表示側」</li>
-    <li><i>2</i>撮る端末で「撮影側」→ 番号を入力</li>
-    <li><i>3</i>動いてから画面でチェック</li>
+    <li><i>1</i>見る端末で「表示側」を開く</li>
+    <li><i>2</i>撮る端末で「撮影側」を開き、番号を入力</li>
+    <li><i>3</i>撮影側を置いて動き、表示側で確認</li>
   </ol>
 </div>
 
@@ -245,7 +265,7 @@
     </div>
     <div class="bar">
       <div class="delay"><small>遅延</small><span id="delayVal">10.0</span><em>秒</em></div>
-      <input id="delay" type="range" min="1" max="30" step="0.5" value="10" aria-label="遅延の秒数">
+      <input id="delay" type="range" min="0" max="30" step="0.5" value="10" aria-label="遅延の秒数">
       <label class="toggle"><input id="mirror" type="checkbox"><span class="btn" data-icon="mirror"><span>左右反転</span></span></label>
       <button class="btn icon" data-icon="link" onclick="openSetup()" aria-label="接続設定"></button>
     </div>
@@ -269,7 +289,8 @@
         <rect x="160" y="12" width="52" height="40" rx="6"/><path d="M178 60h16"/>
       </svg>
       <div id="setupAuto">
-        <div class="lead">撮影側でこの番号を入力</div>
+        <div class="stepper"><span class="done">✓ 1 表示側を開く</span><span class="now">2 撮影側で番号を入力</span><span>3 動いて確認</span></div>
+        <div class="lead">撮る端末で「撮影側」を開き、この番号を入力</div>
         <div class="sub">次回からは自動でつながります</div>
         <div id="code" aria-live="polite"></div>
         <div class="bar" style="justify-content:center">
@@ -303,10 +324,15 @@
     <video id="preview" muted playsinline autoplay></video>
     <i class="corner c1"></i><i class="corner c2"></i><i class="corner c3"></i><i class="corner c4"></i>
     <div id="camMsgEl" class="pill"><span>カメラを起動中…</span></div>
+    <div id="zoomBar">
+      <div id="lensChips" class="seg" style="display:none" role="group" aria-label="レンズ"></div>
+      <input id="zoom" type="range" min="1" max="4" step="0.1" value="1" aria-label="ズーム">
+      <span id="zoomVal">1.0x</span>
+    </div>
   </div>
   <div id="camPanel">
     <div id="camAuto">
-      <div class="label">表示側に出ている番号</div>
+      <div id="camStep"><b>2</b>表示側に出ている番号を入力 → 接続</div>
       <div class="field">
         <input id="codeInput" inputmode="numeric" maxlength="6" placeholder="000000" aria-label="表示側の番号">
         <button class="btn primary" data-icon="go" onclick="connectAuto()"><span>接続</span></button>
@@ -372,11 +398,15 @@ const $ = id => document.getElementById(id);
 function show(id){ document.querySelectorAll('.screen').forEach(s => s.classList.toggle('active', s.id === id)); }
 function setupMsg(s){ $('setupMsgEl').textContent = s; }
 function tone(s){
-  if (/送信中|受信中|遅延表示中/.test(s)) return 'ok';
+  if (/送信中|受信中|遅延表示中|リアルタイム/.test(s)) return 'ok';
   if (/切断|失敗|エラー|できません|使えません|見つかりません|つながりません/.test(s)) return 'bad';
   return 'wait';
 }
-function camMsg(s){ const el = $('camMsgEl'); el.querySelector('span').textContent = s; el.dataset.tone = tone(s); }
+function camMsg(s){
+  const el = $('camMsgEl'); el.querySelector('span').textContent = s; el.dataset.tone = tone(s);
+  const st = document.getElementById('camStep');
+  if (st) st.innerHTML = tone(s) === 'ok' ? '<b>3</b>端末を置いて動き、表示側の画面で確認' : '<b>2</b>表示側に出ている番号を入力 → 接続';
+}
 function setStatus(s){ const el = $('status'); el.querySelector('span').textContent = s; el.dataset.tone = tone(s); el.style.display = s ? '' : 'none'; }
 function renderCode(c){ $('code').innerHTML = String(c).split('').map(d => '<span>' + d + '</span>').join(''); }
 function store(k, v){ try { if (v === undefined) return localStorage.getItem(k); localStorage.setItem(k, v); } catch(e){ return null; } }
@@ -594,9 +624,19 @@ function render(now){
     updateSeekUI(now);
   }
 
+  // 遅延0秒：溜めずに受信映像をそのまま描く（いちばん遅れが少ない）
+  if (live && delayMs === 0 && recv.videoWidth) {
+    const w = recv.videoWidth, h = recv.videoHeight;
+    if (out.width !== w || out.height !== h) { out.width = w; out.height = h; fit(); }
+    octx.setTransform(1, 0, 0, 1, 0, 0);
+    if ($('mirror').checked) octx.setTransform(-1, 0, 0, 1, w, 0);
+    octx.drawImage(recv, 0, 0);
+    shownT = -1; setStatus('リアルタイム表示中');
+    return;
+  }
   if (!frames.length) return;
   if (live && frames[0].t > liveHead) {
-    const pct = Math.max(0, Math.min(99, Math.floor((now - frames[0].t) / delayMs * 100)));
+    const pct = Math.max(0, Math.min(99, Math.floor((now - frames[0].t) / Math.max(delayMs, 1) * 100)));
     setStatus('バッファ中 ' + pct + '%');
     return;
   }
@@ -782,15 +822,132 @@ let camPeer = null, call = null, targetCode = null, retryTimer = null;   // 番�
 let cpc = null, answerText = '';                                          // 手動方式
 let camMode = 'auto';
 
+// stream = カメラそのものの映像 / sendStream = ズーム（切り抜き）後に送る映像（デジタルズーム中のみ）
+let devId = null, sendStream = null, zoomMode = 'digital', zoom = 1;
+let zoomCanvas = null, zoomCtx = null, rawVid = null, zoomLoop = false;
+function currentSend(){ return sendStream || stream; }
+
 async function openCamera(){
-  const s = await navigator.mediaDevices.getUserMedia({
-    video: { facingMode: facing, width: { ideal: 1280 }, height: { ideal: 720 }, frameRate: { ideal: 30 } },
-    audio: false
-  });
+  const v = devId ? { deviceId: { exact: devId } } : { facingMode: facing };
+  Object.assign(v, { width: { ideal: 1280 }, height: { ideal: 720 }, frameRate: { ideal: 30 } });
+  const s = await navigator.mediaDevices.getUserMedia({ video: v, audio: false });
   if (stream) stream.getTracks().forEach(t => t.stop());
   stream = s;
-  preview.srcObject = s;
-  preview.play().catch(() => {});
+  setupZoom();
+  refreshSend();
+  updateLenses();
+}
+
+// ---- ズーム：カメラが対応していれば本物のズーム、なければ映像を切り抜いて拡大 ----
+function setupZoom(){
+  const track = stream.getVideoTracks()[0];
+  let caps = {};
+  try { caps = track.getCapabilities ? track.getCapabilities() : {}; } catch(e){}
+  const z = $('zoom');
+  if (caps.zoom && caps.zoom.max > caps.zoom.min) {
+    zoomMode = 'native';
+    z.min = caps.zoom.min; z.max = Math.min(caps.zoom.max, 10); z.step = caps.zoom.step || 0.1;
+  } else {
+    zoomMode = 'digital';
+    z.min = 1; z.max = 4; z.step = 0.1;
+  }
+  setZoom(zoom);
+}
+function setZoom(v){
+  const z = $('zoom');
+  v = Math.max(parseFloat(z.min), Math.min(parseFloat(z.max), v));
+  zoom = v; z.value = v;
+  $('zoomVal').textContent = v.toFixed(1) + 'x';
+  if (zoomMode === 'native') {
+    const t = stream && stream.getVideoTracks()[0];
+    if (t) t.applyConstraints({ advanced: [{ zoom: v }] }).catch(() => {});
+  } else refreshSend();
+}
+$('zoom').addEventListener('input', e => setZoom(parseFloat(e.target.value)));
+
+function startPipe(){
+  if (!rawVid) {
+    rawVid = document.createElement('video');
+    rawVid.muted = true; rawVid.setAttribute('playsinline', ''); rawVid.playsInline = true;
+    rawVid.style.cssText = 'position:absolute;width:2px;height:2px;opacity:0;pointer-events:none';
+    document.body.appendChild(rawVid);
+  }
+  if (rawVid.srcObject !== stream) { rawVid.srcObject = stream; rawVid.play().catch(() => {}); }
+  if (!zoomCanvas) { zoomCanvas = document.createElement('canvas'); zoomCtx = zoomCanvas.getContext('2d'); }
+  if (!sendStream) {
+    const st = stream.getVideoTracks()[0].getSettings();
+    zoomCanvas.width = st.width || 1280; zoomCanvas.height = st.height || 720;
+    sendStream = zoomCanvas.captureStream(30);
+  }
+  if (!zoomLoop) { zoomLoop = true; requestAnimationFrame(drawPipe); }
+}
+function drawPipe(){
+  if (!sendStream) { zoomLoop = false; return; }
+  const vw = rawVid.videoWidth, vh = rawVid.videoHeight;
+  if (vw && vh) {
+    if (zoomCanvas.width !== vw || zoomCanvas.height !== vh) { zoomCanvas.width = vw; zoomCanvas.height = vh; }
+    const sw = vw / zoom, sh = vh / zoom;
+    zoomCtx.drawImage(rawVid, (vw - sw) / 2, (vh - sh) / 2, sw, sh, 0, 0, vw, vh);
+  }
+  requestAnimationFrame(drawPipe);
+}
+function stopPipe(){ if (sendStream) { sendStream.getTracks().forEach(t => t.stop()); sendStream = null; } }
+
+// 送る映像を決めて、プレビューと接続中の相手に反映する
+function refreshSend(){
+  if (!stream) return;
+  if (zoomMode === 'digital' && zoom > 1.01) startPipe(); else stopPipe();
+  if (preview.srcObject !== currentSend()) { preview.srcObject = currentSend(); preview.play().catch(() => {}); }
+  const t = currentSend().getVideoTracks()[0];
+  [call && call.peerConnection, cpc].forEach(pc => {
+    if (!pc) return;
+    const sender = pc.getSenders().find(x => x.track ? x.track.kind === 'video' : true);
+    if (sender && sender.track !== t) sender.replaceTrack(t).catch(() => {});
+  });
+}
+
+// 2本指でピンチしてズーム
+(() => {
+  const finder = document.querySelector('.finder');
+  const dist = t => Math.hypot(t[0].clientX - t[1].clientX, t[0].clientY - t[1].clientY);
+  let pinch = null;
+  finder.addEventListener('touchstart', e => { if (e.touches.length === 2) pinch = { d: dist(e.touches), z: zoom }; }, { passive: true });
+  finder.addEventListener('touchmove', e => {
+    if (pinch && e.touches.length === 2) { e.preventDefault(); setZoom(pinch.z * dist(e.touches) / pinch.d); }
+  }, { passive: false });
+  finder.addEventListener('touchend', () => { pinch = null; });
+  document.addEventListener('gesturestart', e => e.preventDefault());
+})();
+
+// ---- レンズ切替（iPhoneの超広角・広角・望遠） ----
+async function updateLenses(){
+  const box = $('lensChips'); box.innerHTML = '';
+  let devs = [];
+  try { devs = (await navigator.mediaDevices.enumerateDevices()).filter(d => d.kind === 'videoinput'); } catch(e){}
+  const lenses = [];
+  if (facing === 'environment') for (const d of devs) {
+    const l = d.label || '';
+    if (!/背面|back|rear/i.test(l) || /デュアル|トリプル|dual|triple/i.test(l)) continue;
+    let name = '1x', order = 1;
+    if (/超広角|ultra ?wide/i.test(l)) { name = '0.5x'; order = 0; }
+    else if (/望遠|telephoto/i.test(l)) { name = '望遠'; order = 2; }
+    if (!lenses.some(x => x.name === name)) lenses.push({ name, order, id: d.deviceId });
+  }
+  lenses.sort((a, b) => a.order - b.order);
+  if (lenses.length < 2) { box.style.display = 'none'; return; }
+  box.style.display = '';
+  const cur = stream && stream.getVideoTracks()[0].getSettings().deviceId;
+  lenses.forEach(L => {
+    const b = document.createElement('button');
+    b.className = 'btn' + (L.id === cur ? ' on' : '');
+    b.textContent = L.name;
+    b.onclick = () => selectLens(L.id);
+    box.appendChild(b);
+  });
+}
+async function selectLens(id){
+  devId = id; zoom = 1;
+  try { await openCamera(); } catch(e){ camMsg('レンズを切り替えられません: ' + e.name); }
 }
 function cameraAlive(){ return stream && stream.getVideoTracks().some(t => t.readyState === 'live'); }
 
@@ -833,7 +990,7 @@ async function connectAuto(){
   camMsg('接続中…');
   if (!(await ensureCamPeer())) { camMsg('サーバーにつながりません。再試行します…'); scheduleRetry(); return; }
   if (call) { const old = call; call = null; try { old.close(); } catch(e){} }
-  const c = camPeer.call(PREFIX + code, stream);
+  const c = camPeer.call(PREFIX + code, currentSend());
   call = c;
   if (!c) { scheduleRetry(); return; }
   c.on('close', () => { if (c === call) { camMsg('切断されました。再接続します…'); scheduleRetry(); } });
@@ -864,7 +1021,7 @@ async function cameraResume(){
   if (camMode === 'auto') {
     if (!cameraAlive() || !callConnected()) { if (targetCode) connectAuto(); }
   } else if (!cameraAlive()) {
-    try { await openCamera(); replaceSenderTrack(cpc); } catch(e){}
+    try { await openCamera(); } catch(e){}
     camMsg('カメラを再起動しました。映らない場合は手動接続をやり直してください');
   }
 }
@@ -898,7 +1055,8 @@ async function acceptOffer(){
   });
   try {
     await pc.setRemoteDescription(offer);
-    pc.addTrack(stream.getVideoTracks()[0], stream);
+    const out = currentSend();
+    pc.addTrack(out.getVideoTracks()[0], out);
     await pc.setLocalDescription(await pc.createAnswer());
     await waitIce(pc);
     answerText = pack(TAG_ANSWER, pc.localDescription);
@@ -908,15 +1066,10 @@ async function acceptOffer(){
   } catch(e){ camMsg('失敗しました: ' + e.message); }
 }
 
-function replaceSenderTrack(pc){
-  if (!pc || !stream) return;
-  const sender = pc.getSenders().find(s => s.track ? s.track.kind === 'video' : true);
-  if (sender) sender.replaceTrack(stream.getVideoTracks()[0]);
-}
 async function flipCamera(){
   facing = facing === 'environment' ? 'user' : 'environment';
-  try { await openCamera(); } catch(e){ camMsg('切替失敗: ' + e.name); return; }
-  replaceSenderTrack(camMode === 'auto' ? (call && call.peerConnection) : cpc);
+  devId = null; zoom = 1;
+  try { await openCamera(); } catch(e){ camMsg('切替失敗: ' + e.name); }
 }
 </script>
 </body>
