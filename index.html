@@ -110,6 +110,9 @@
   #viewReset.show{display:inline-flex}
   #viewReset b{font-family:var(--num);color:var(--amber)}
   #recv{position:absolute;width:2px;height:2px;opacity:0;pointer-events:none}
+  #toast{position:absolute;left:50%;transform:translateX(-50%);top:calc(env(safe-area-inset-top) + 116px);max-width:88vw;display:none;
+    padding:10px 16px;border-radius:14px;background:rgba(15,27,45,.92);border:1px solid var(--line);font-size:15px;font-weight:600;text-align:center;z-index:5}
+  #toast.show{display:block}
   #status{position:absolute;top:calc(env(safe-area-inset-top) + 12px);left:12px;max-width:70vw}
   #badge{position:absolute;top:calc(env(safe-area-inset-top) + 12px);right:12px;display:flex;gap:8px}
   #recDot{display:none;color:#fff;background:var(--rec)}
@@ -178,6 +181,8 @@
     #display{justify-content:flex-start;align-items:center;padding-top:0}
     #status{max-width:40vw}
     #badge{right:auto;left:12px;top:auto;bottom:12px}
+    #viewReset,#toast{left:calc((100vw - min(400px,48vw)) / 2)}
+    #viewReset{top:12px}
     #seekVal{width:100%}
   }
 
@@ -275,7 +280,7 @@
     <li><i>2</i>撮る端末で「撮影側」を開き、番号を入力</li>
     <li><i>3</i>撮影側を置いて動き、表示側で確認</li>
   </ol>
-  <div class="ver">バージョン 0.8</div>
+  <div class="ver">バージョン 0.9</div>
 </div>
 
 <!-- ================= 表示側 ================= -->
@@ -285,7 +290,8 @@
   <button id="viewReset" class="btn" data-icon="full" onclick="resetView()"><span>全体を表示</span><b id="viewZoomVal"></b></button>
   <video id="recv" muted playsinline autoplay></video>
   <div id="status" class="pill" style="display:none"><span></span></div>
-  <div id="badge"><span id="recDot" class="pill">録画中</span><span id="badgeCode" class="pill"></span><span class="pill" id="verBadge">v0.8</span></div>
+  <div id="toast" role="status" aria-live="polite"></div>
+  <div id="badge"><span id="recDot" class="pill">録画中</span><span id="badgeCode" class="pill"></span><span class="pill" id="verBadge">v0.9</span></div>
 
   <div id="panel" class="hidden">
     <div class="bar" id="seekRow">
@@ -475,7 +481,11 @@ function camMsg(s){
   const st = document.getElementById('camStep');
   if (st) st.innerHTML = tone(s) === 'ok' ? '<b>3</b>端末を置いて動き、表示側の画面で確認' : '<b>2</b>表示側に出ている番号を入力 → 接続';
 }
-function setStatus(s){ const el = $('status'); el.querySelector('span').textContent = s; el.dataset.tone = tone(s); el.style.display = s ? '' : 'none'; }
+function setStatus(s){
+  if (role === 'display' && !linkUp && recv.srcObject && /遅延表示中|リアルタイム|受信中|再生中|一時停止中|バッファ中/.test(s)) s = '切断中：撮影側の再接続を待っています';
+  const el = $('status'); el.querySelector('span').textContent = s; el.dataset.tone = tone(s); el.style.display = s ? '' : 'none'; }
+let toastTimer = null;
+function toast(msg){ const t = $('toast'); t.textContent = msg; t.classList.add('show'); clearTimeout(toastTimer); toastTimer = setTimeout(() => t.classList.remove('show'), 3500); }
 function renderCode(c){ $('code').innerHTML = String(c).split('').map(d => '<span>' + d + '</span>').join(''); }
 function store(k, v){ try { if (v === undefined) return localStorage.getItem(k); localStorage.setItem(k, v); } catch(e){ return null; } }
 const hasPeerJS = () => typeof Peer !== 'undefined';
@@ -541,6 +551,7 @@ const cap = document.createElement('canvas'), cctx = cap.getContext('2d');
 let frames = [];             // {t: 撮った時刻(ms), b: JPEG Blob}（古い順）
 let encoding = 0, lastCap = 0, drawing = false, shownT = -1;
 let delayMs = 10000, loopStarted = false;
+let linkUp = false, curLink = null;   // 今つながっている撮影側（古い接続からの通知は無視する）
 let displayPeer = null, dpc = null, offerText = '', myCode = null;
 // 撮影側のカメラを操作する通り道（撮影側からつないできた相手とだけ）
 let manualCtl = null, ctlConns = {}, mediaPeerId = null, rDragging = false, rDragTimer = null, rSendTimer = null;
@@ -606,9 +617,12 @@ function startDisplayPeer(){
     mediaPeerId = call.peer;
     if (ctlConns[call.peer]) ctlConns[call.peer].send({ t: 'hello' });
     call.answer();  // 表示側は受信のみ
-    call.on('stream', s => onRemoteStream(s));
-    call.on('close', () => onRemoteLost());
-    if (call.peerConnection) watchState(call.peerConnection, st => { if (st === 'failed' || st === 'disconnected') onRemoteLost(); });
+    call.on('stream', s => onRemoteStream(s, call));
+    call.on('close', () => onRemoteLost(call));
+    if (call.peerConnection) watchState(call.peerConnection, st => {
+      if (st === 'failed' || st === 'disconnected') onRemoteLost(call);
+      else if ((st === 'connected' || st === 'completed') && curLink === call) linkUp = true;
+    });
   });
 }
 function newCode(){
@@ -621,7 +635,10 @@ function displayResume(){
   else if (displayPeer && displayPeer.destroyed) startDisplayPeer();
 }
 
-function onRemoteStream(s){
+function onRemoteStream(s, from){
+  // 3. 録画中に映像が切り替わったら、そこまでを保存できるようにして止める
+  if (recorder && recorder.state === 'recording' && recv.srcObject && recv.srcObject !== s) { recorder.stop(); toast('撮影側がつなぎ直したため、録画をいったん止めました'); }
+  curLink = from || null; linkUp = true;
   recv.srcObject = s;
   recv.play().catch(() => {});
   closeSetup();
@@ -630,8 +647,10 @@ function onRemoteStream(s){
   setTimeout(fit, 0);
   setStatus('受信中');
 }
-function onRemoteLost(){
-  setStatus(dpc ? '切断されました（手動接続はやり直しが必要です）' : '切断されました。撮影側の再接続を待っています');
+function onRemoteLost(from){
+  if (from && curLink && from !== curLink) return;   // 古い接続の終了は無視
+  linkUp = false;
+  setStatus(dpc ? '切断されました（手動接続はやり直しが必要です）' : '切断中：撮影側の再接続を待っています');
 }
 function openSetup(){ $('setup').style.display = 'flex'; $('btnCloseSetup').style.display = recv.srcObject ? '' : 'none'; }
 function closeSetup(){ $('setup').style.display = 'none'; }
@@ -646,8 +665,11 @@ async function showManualDisplay(){
   ch.onopen = () => { manualCtl = { send: o => { if (ch.readyState === 'open') ch.send(JSON.stringify(o)); } }; manualCtl.send({ t: 'hello' }); };
   ch.onmessage = e => onCtlMsg(e.data);
   ch.onclose = () => { manualCtl = null; hideCamCtl(); };
-  dpc.ontrack = e => onRemoteStream(e.streams[0] || new MediaStream([e.track]));
-  watchState(dpc, st => { if (st === 'failed' || st === 'disconnected') onRemoteLost(); });
+  dpc.ontrack = e => onRemoteStream(e.streams[0] || new MediaStream([e.track]), dpc);
+  watchState(dpc, st => {
+    if (st === 'failed' || st === 'disconnected') onRemoteLost(dpc);
+    else if ((st === 'connected' || st === 'completed') && curLink === dpc) linkUp = true;
+  });
   setupMsg('準備中…');
   await dpc.setLocalDescription(await dpc.createOffer());
   await waitIce(dpc);
@@ -957,6 +979,7 @@ $('seek').addEventListener('input', ev => {
   shownT = -1;
 });
 $('seek').addEventListener('change', () => { seeking = false; });
+$('mirror').addEventListener('change', () => { shownT = -1; });
 $('delay').addEventListener('input', e => {
   delayMs = parseFloat(e.target.value) * 1000;
   $('delayVal').textContent = parseFloat(e.target.value).toFixed(1);
@@ -971,10 +994,10 @@ function pickMime(){
 }
 function toggleRecord(){
   if (recorder && recorder.state === 'recording') { recorder.stop(); return; }
-  if (!recv.srcObject) { setStatus('映像を受信していません'); return; }
+  if (!recv.srcObject) { toast('まだ映像を受信していません'); return; }
   const mime = pickMime();
   try { recorder = new MediaRecorder(recv.srcObject, mime ? { mimeType: mime, videoBitsPerSecond: 8000000 } : undefined); }
-  catch(e){ setStatus('録画できません: ' + e.message); return; }
+  catch(e){ toast('録画できません: ' + e.message); return; }
   recChunks = [];
   recorder.ondataavailable = e => { if (e.data && e.data.size) recChunks.push(e.data); };
   recorder.onstop = () => {
@@ -991,11 +1014,11 @@ function toggleRecord(){
 let exporting = false;
 async function saveClip(){
   if (exporting) return;
-  if (!frames.length) { setStatus('まだ映像が溜まっていません'); return; }
+  if (!frames.length) { toast('まだ映像が溜まっていません'); return; }
   const sec = parseInt($('clipSec').value, 10);
   const now = performance.now();
   const clip = frames.filter(f => f.t >= now - sec * 1000);   // 遅延に関係なく、今から◯秒前まで
-  if (clip.length < 2) { setStatus('映像が足りません'); return; }
+  if (clip.length < 2) { toast('保存できる映像が足りません'); return; }
   exporting = true;
   const btn = $('btnClip'); btn.disabled = true;
   try {
@@ -1014,7 +1037,13 @@ async function saveClip(){
       const wait = start + (clip[i].t - t0) - performance.now();
       if (wait > 0) await new Promise(r => setTimeout(r, wait));
       const bmp = await createImageBitmap(clip[i].b);
-      x.drawImage(bmp, 0, 0); if (bmp.close) bmp.close();
+      if (bmp.width === c.width && bmp.height === c.height) x.drawImage(bmp, 0, 0);
+      else {
+        const k = Math.min(c.width / bmp.width, c.height / bmp.height), dw = bmp.width * k, dh = bmp.height * k;
+        x.fillStyle = '#000'; x.fillRect(0, 0, c.width, c.height);
+        x.drawImage(bmp, (c.width - dw) / 2, (c.height - dh) / 2, dw, dh);
+      }
+      if (bmp.close) bmp.close();
       if (i % 15 === 0) $('clipLabel').textContent = '作成中 ' + Math.floor(i / clip.length * 100) + '%';
     }
     await new Promise(r => setTimeout(r, 200));
@@ -1022,7 +1051,7 @@ async function saveClip(){
     cs.getTracks().forEach(t => t.stop());
     offerSave(new Blob(chunks, { type: rec.mimeType || mime || 'video/mp4' }), '直前' + sec + '秒');
   } catch(e){
-    setStatus('保存に失敗しました: ' + e.message);
+    toast('保存に失敗しました: ' + e.message);
   } finally {
     exporting = false; btn.disabled = false; $('clipLabel').textContent = '直前を保存';
   }
@@ -1033,7 +1062,7 @@ function offerSave(blob, label){
   const ext = (blob.type || '').includes('webm') ? 'webm' : 'mp4';
   const d = new Date(), p = n => String(n).padStart(2, '0');
   const name = 'delaycam_' + d.getFullYear() + p(d.getMonth() + 1) + p(d.getDate()) + '_' + p(d.getHours()) + p(d.getMinutes()) + p(d.getSeconds()) + '.' + ext;
-  lastVideo = new File([blob], name, { type: blob.type || 'video/mp4' });
+  lastVideo = new File([blob], name, { type: ext === 'webm' ? 'video/webm' : 'video/mp4' });
   $('saveMsg').textContent = label + 'の動画ができました（' + (blob.size / 1048576).toFixed(1) + 'MB）';
   $('saveBar').style.display = 'block';
 }
@@ -1100,9 +1129,18 @@ function setZoom(v){
   $('zoomVal').textContent = v.toFixed(1) + 'x';
   if (zoomMode === 'native') {
     const t = stream && stream.getVideoTracks()[0];
-    if (t) t.applyConstraints({ advanced: [{ zoom: v }] }).catch(() => {});
+    if (t) t.applyConstraints({ advanced: [{ zoom: v }] }).then(() => {
+      const got = t.getSettings().zoom;
+      if (typeof got === 'number' && Math.abs(got - v) > 0.2) fallbackDigital(v);
+    }).catch(() => fallbackDigital(v));
   } else refreshSend();
   scheduleCaps();
+}
+function fallbackDigital(v){
+  if (zoomMode !== 'native') return;
+  zoomMode = 'digital';
+  const z = $('zoom'); z.min = 1; z.max = 4; z.step = 0.1;
+  setZoom(Math.max(1, v));
 }
 // 表示側へ、今のズーム・レンズの状態を知らせる
 function scheduleCaps(){ clearTimeout(capsTimer); capsTimer = setTimeout(sendCaps, 150); }
@@ -1299,6 +1337,7 @@ async function cameraResume(){
 function showManualCamera(){
   camMode = 'manual'; clearTimeout(retryTimer);
   if (call) { const old = call; call = null; try { old.close(); } catch(e){} }
+  if (dataConn) { const d = dataConn; dataConn = null; ctl = null; try { d.close(); } catch(e){} }
   $('camAuto').style.display = 'none'; $('camManual').style.display = 'flex';
   camMsg('表示側で「手動でつなぐ」→「1」を押してから、ここで「1」を押してください');
 }
