@@ -69,6 +69,7 @@
   #zoomBar .seg .btn{height:36px;padding:0 10px;font-size:14px}
   #zoomVal,.zval{font-family:var(--num);font-weight:700;color:var(--amber);min-width:3.4em;text-align:right}
   .lbl{color:var(--mute);font-size:14px;min-width:150px}
+  .ver{color:var(--line);font-size:12px;font-family:var(--num)}
   .card b{font-size:24px;font-weight:800}
   .card small{color:var(--mute);font-size:15px}
   .lag{display:flex;flex-direction:column;align-items:center;gap:6px;color:var(--amber);font-size:13px;font-weight:700}
@@ -111,6 +112,8 @@
   #badgeCode{font-family:var(--num);letter-spacing:.06em}
   #badgeCode::before{display:none}
   #badgeCode:empty{display:none}
+  #verBadge{color:var(--mute);font-family:var(--num)}
+  #verBadge::before{display:none}
 
   #panel{position:absolute;left:12px;right:12px;bottom:calc(env(safe-area-inset-bottom) + 12px);padding:14px;border-radius:24px;
     background:rgba(15,27,45,.8);-webkit-backdrop-filter:blur(18px);backdrop-filter:blur(18px);border:1px solid rgba(238,242,247,.08);
@@ -230,6 +233,7 @@
     <li><i>2</i>撮る端末で「撮影側」を開き、番号を入力</li>
     <li><i>3</i>撮影側を置いて動き、表示側で確認</li>
   </ol>
+  <div class="ver">バージョン 0.5</div>
 </div>
 
 <!-- ================= 表示側 ================= -->
@@ -237,7 +241,7 @@
   <canvas id="out"></canvas>
   <video id="recv" muted playsinline autoplay></video>
   <div id="status" class="pill" style="display:none"><span></span></div>
-  <div id="badge"><span id="recDot" class="pill">録画中</span><span id="badgeCode" class="pill"></span></div>
+  <div id="badge"><span id="recDot" class="pill">録画中</span><span id="badgeCode" class="pill"></span><span class="pill" id="verBadge">v0.5</span></div>
 
   <div id="panel" class="hidden">
     <div class="bar" id="seekRow">
@@ -486,6 +490,8 @@ let manualCtl = null, ctlConns = {}, mediaPeerId = null, rDragging = false, rDra
 // 命令を送る相手：手動接続ならそのチャネル、番号方式なら「映像を送ってきている撮影側」の接続だけ
 function getCtl(){ return manualCtl || (mediaPeerId && ctlConns[mediaPeerId]) || null; }
 function hideCamCtl(){ $('camCtlRow').style.display = 'none'; }
+let gotCaps = false;
+setInterval(() => { if (!gotCaps || $('camCtlRow').style.display === 'none') { const c = getCtl(); if (c) c.send({ t: 'hello' }); } }, 2000);
 
 // 再生状態：live=遅延ライブ表示 / それ以外は playhead を自分で進める
 let live = true, paused = false, rate = 1, playhead = 0, lastTick = 0;
@@ -707,6 +713,7 @@ function onCtlMsg(m){
   const num = x => (typeof x === 'number' && isFinite(x)) ? x : null;
   const min = num(m.min), max = num(m.max), step = num(m.step), z = num(m.zoom);
   if (min === null || max === null || z === null) return;
+  gotCaps = true;
   $('camCtlRow').style.display = 'flex';
   const r = $('rZoom');
   r.min = min; r.max = max; r.step = step || 0.1;
