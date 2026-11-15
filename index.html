@@ -101,7 +101,13 @@
 
   /* ---------- 表示側 ---------- */
   #display{align-items:center;justify-content:center;background:#000}
-  #out{display:block}
+  #outWrap{position:relative;overflow:hidden;flex:none}
+  #out{display:block;touch-action:none;transform-origin:0 0;will-change:transform}
+  #selBox{position:fixed;display:none;border:2px solid var(--amber);background:rgba(255,181,71,.12);border-radius:6px;pointer-events:none}
+  #viewReset{display:none;position:absolute;top:calc(env(safe-area-inset-top) + 64px);left:50%;transform:translateX(-50%);height:42px;font-size:14px;
+    background:rgba(15,27,45,.8);-webkit-backdrop-filter:blur(12px);backdrop-filter:blur(12px);border:1px solid rgba(238,242,247,.12)}
+  #viewReset.show{display:inline-flex}
+  #viewReset b{font-family:var(--num);color:var(--amber)}
   #recv{position:absolute;width:2px;height:2px;opacity:0;pointer-events:none}
   #status{position:absolute;top:calc(env(safe-area-inset-top) + 12px);left:12px;max-width:70vw}
   #badge{position:absolute;top:calc(env(safe-area-inset-top) + 12px);right:12px;display:flex;gap:8px}
@@ -271,15 +277,17 @@
     <li><i>2</i>撮る端末で「撮影側」を開き、番号を入力</li>
     <li><i>3</i>撮影側を置いて動き、表示側で確認</li>
   </ol>
-  <div class="ver">バージョン 0.6</div>
+  <div class="ver">バージョン 0.7</div>
 </div>
 
 <!-- ================= 表示側 ================= -->
 <div id="display" class="screen">
-  <canvas id="out"></canvas>
+  <div id="outWrap"><canvas id="out"></canvas></div>
+  <div id="selBox"></div>
+  <button id="viewReset" class="btn" data-icon="full" onclick="resetView()"><span>全体を表示</span><b id="viewZoomVal"></b></button>
   <video id="recv" muted playsinline autoplay></video>
   <div id="status" class="pill" style="display:none"><span></span></div>
-  <div id="badge"><span id="recDot" class="pill">録画中</span><span id="badgeCode" class="pill"></span><span class="pill" id="verBadge">v0.6</span></div>
+  <div id="badge"><span id="recDot" class="pill">録画中</span><span id="badgeCode" class="pill"></span><span class="pill" id="verBadge">v0.7</span></div>
 
   <div id="panel" class="hidden">
     <div class="bar" id="seekRow">
@@ -433,6 +441,7 @@ const ICON = {
   more:   S + '<circle cx="5.5" cy="12" r="1.8" fill="currentColor" stroke="none"/><circle cx="12" cy="12" r="1.8" fill="currentColor" stroke="none"/><circle cx="18.5" cy="12" r="1.8" fill="currentColor" stroke="none"/></svg>',
   down:   S + '<path d="M6 9.5l6 6 6-6"/></svg>',
   up:     S + '<path d="M6 14.5l6-6 6 6"/></svg>',
+  full:   S + '<path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"/></svg>',
   go:     S + '<path d="M5 12h13M13 6.5l5.5 5.5-5.5 5.5"/></svg>',
   flip:   S + '<path d="M3.5 8.5h3l2-2.5h7l2 2.5h3V19h-17z"/><path d="M9.3 13.6a2.8 2.8 0 0 1 4.9-1.9M14.7 13a2.8 2.8 0 0 1-4.9 1.9"/><path d="M14.4 10.4v1.6h-1.6M9.6 16.2v-1.6h1.6"/></svg>',
 };
@@ -760,6 +769,8 @@ function fit(){
   const s = Math.min(Math.max(80, innerWidth - pw) / out.width, Math.max(80, innerHeight - top - ph) / out.height);
   out.style.width = Math.floor(out.width * s) + 'px';
   out.style.height = Math.floor(out.height * s) + 'px';
+  $('outWrap').style.width = out.style.width; $('outWrap').style.height = out.style.height;
+  if (typeof applyView === 'function') applyView();
 }
 function setPanel(open){
   $('panel').classList.toggle('hidden', !open);
@@ -773,7 +784,93 @@ function toggleMore(){
   fit();
 }
 addEventListener('resize', fit);
-out.addEventListener('click', () => setPanel($('panel').classList.contains('hidden')));  // タップで操作パネル表示/非表示
+// ---- 表示ズーム（表示側の画面だけを拡大。録画や撮影側には影響しない） ----
+// 1本指でなぞる＝囲んだ範囲を拡大／2本指ピンチ＝指の位置で拡大縮小／拡大中の1本指＝移動
+// ダブルタップ＝元に戻す／タップ＝操作パネルの表示切替
+let view = { s: 1, tx: 0, ty: 0 };
+const VIEW_MAX = 8;
+function applyView(){
+  const w = out.offsetWidth, h = out.offsetHeight;
+  view.s = Math.max(1, Math.min(VIEW_MAX, view.s));
+  view.tx = Math.min(0, Math.max(w - w * view.s, view.tx));
+  view.ty = Math.min(0, Math.max(h - h * view.s, view.ty));
+  out.style.transform = view.s > 1.001 ? `translate(${view.tx}px, ${view.ty}px) scale(${view.s})` : '';
+  const zoomed = view.s > 1.01;
+  $('viewReset').classList.toggle('show', zoomed);
+  $('viewZoomVal').textContent = zoomed ? view.s.toFixed(1) + 'x' : '';
+}
+function resetView(){ view = { s: 1, tx: 0, ty: 0 }; applyView(); }
+const wrap = $('outWrap');
+function local(e){ const r = wrap.getBoundingClientRect(); return { x: e.clientX - r.left, y: e.clientY - r.top }; }
+function zoomAt(pt, s2){
+  const cx = (pt.x - view.tx) / view.s, cy = (pt.y - view.ty) / view.s;
+  view.s = Math.max(1, Math.min(VIEW_MAX, s2));
+  view.tx = pt.x - cx * view.s; view.ty = pt.y - cy * view.s;
+  applyView();
+}
+const ptrs = new Map();
+let gest = null, lastTap = 0;
+out.addEventListener('pointerdown', e => {
+  try { out.setPointerCapture(e.pointerId); } catch(err){}
+  ptrs.set(e.pointerId, local(e));
+  if (ptrs.size === 1) gest = { mode: 'pending', start: local(e), base: { ...view } };
+  else if (ptrs.size === 2) {
+    const [a, b] = [...ptrs.values()];
+    $('selBox').style.display = 'none';
+    gest = { mode: 'pinch', d0: Math.hypot(a.x - b.x, a.y - b.y) || 1, m0: { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 }, base: { ...view } };
+  }
+});
+out.addEventListener('pointermove', e => {
+  if (!ptrs.has(e.pointerId) || !gest) return;
+  const p = local(e); ptrs.set(e.pointerId, p);
+  if (gest.mode === 'pinch' && ptrs.size >= 2) {
+    const [a, b] = [...ptrs.values()];
+    const d = Math.hypot(a.x - b.x, a.y - b.y), m = { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 };
+    const B = gest.base, cx = (gest.m0.x - B.tx) / B.s, cy = (gest.m0.y - B.ty) / B.s;
+    view.s = Math.max(1, Math.min(VIEW_MAX, B.s * d / gest.d0));
+    view.tx = m.x - cx * view.s; view.ty = m.y - cy * view.s;
+    applyView();
+    return;
+  }
+  const dx = p.x - gest.start.x, dy = p.y - gest.start.y;
+  if (gest.mode === 'pending' && Math.hypot(dx, dy) > 10) gest.mode = view.s > 1.01 ? 'pan' : 'box';
+  if (gest.mode === 'pan') { view.tx = gest.base.tx + dx; view.ty = gest.base.ty + dy; applyView(); }
+  if (gest.mode === 'box') {
+    const sb = $('selBox');
+    sb.style.display = 'block';
+    const r = wrap.getBoundingClientRect();
+    sb.style.left = (r.left + Math.min(p.x, gest.start.x)) + 'px';
+    sb.style.top = (r.top + Math.min(p.y, gest.start.y)) + 'px';
+    sb.style.width = Math.abs(dx) + 'px'; sb.style.height = Math.abs(dy) + 'px';
+    gest.end = p;
+  }
+});
+function endPointer(e){
+  if (!ptrs.has(e.pointerId)) return;
+  ptrs.delete(e.pointerId);
+  if (!gest) return;
+  if (gest.mode === 'pinch') { if (ptrs.size === 0) gest = null; return; }
+  if (gest.mode === 'box' && gest.end) {
+    $('selBox').style.display = 'none';
+    const a = gest.start, b = gest.end, w = out.offsetWidth, h = out.offsetHeight;
+    const bw = Math.abs(b.x - a.x), bh = Math.abs(b.y - a.y);
+    if (bw > 24 && bh > 24) {
+      const mx = (a.x + b.x) / 2, my = (a.y + b.y) / 2;
+      view.s = Math.max(1, Math.min(VIEW_MAX, w / bw, h / bh));
+      view.tx = w / 2 - mx * view.s; view.ty = h / 2 - my * view.s;
+      applyView();
+    }
+  } else if (gest.mode === 'pending' && e.type === 'pointerup') {
+    const now = performance.now();
+    if (now - lastTap < 320) { resetView(); lastTap = 0; }   // ダブルタップ：元に戻す
+    else lastTap = now;
+    setPanel($('panel').classList.contains('hidden'));      // タップ：パネル切替（ダブルタップなら2回で元どおり）
+  }
+  gest = null;
+}
+out.addEventListener('pointerup', endPointer);
+out.addEventListener('pointercancel', endPointer);
+out.addEventListener('wheel', e => { e.preventDefault(); zoomAt(local(e), view.s * Math.exp(-e.deltaY / 300)); }, { passive: false });
 
 // ---- 撮影側カメラの遠隔操作（表示側） ----
 function onCtlMsg(m){
