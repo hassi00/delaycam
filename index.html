@@ -28,7 +28,7 @@
   .row{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
   select{font-size:17px;padding:10px;border-radius:10px}
 
-  /* 表示側（iPad） */
+  /* 表示側 */
   #display{align-items:center;justify-content:center}
   #out{display:block;background:#111}
   #recv{position:absolute;width:2px;height:2px;opacity:0;pointer-events:none}
@@ -47,7 +47,7 @@
   #seekRow{display:none}
   #saveBar{display:none;position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);background:#222;padding:20px;border-radius:16px;text-align:center}
 
-  /* 撮影側（iPhone） */
+  /* 撮影側 */
   #camera{flex-direction:column}
   #preview{flex:1;width:100%;object-fit:contain;background:#111;min-height:0}
   #camPanel{padding:12px 16px calc(env(safe-area-inset-bottom) + 12px);display:flex;flex-direction:column;gap:10px;background:#000}
@@ -58,12 +58,12 @@
 
 <div id="home" class="screen active">
   <h1>遅延カメラ</h1>
-  <button class="big" onclick="startDisplay()">表示する（iPad）</button>
-  <button class="big sub" onclick="startCamera()">撮影する（iPhone）</button>
-  <div class="hint center">先にiPadで「表示する」を押してください。<br>手動接続は2台を同じWi-Fi（またはテザリング）に。</div>
+  <button class="big" onclick="startDisplay()">表示側<br><span style="font-size:15px;opacity:.85">遅れた映像を見る</span></button>
+  <button class="big sub" onclick="startCamera()">撮影側<br><span style="font-size:15px;opacity:.85">カメラで撮って送る</span></button>
+  <div class="hint center">先に見る端末で「表示側」を押してください。<br>手動接続は2台を同じWi-Fi（またはテザリング）に。</div>
 </div>
 
-<!-- ================= 表示側（iPad） ================= -->
+<!-- ================= 表示側 ================= -->
 <div id="display" class="screen">
   <canvas id="out"></canvas>
   <video id="recv" muted playsinline autoplay></video>
@@ -114,7 +114,7 @@
   <div id="setup">
     <div id="setupBox" class="col">
       <div id="setupAuto" class="col">
-        <div class="hint center">iPhoneでこの番号を入力（次回からは自動でつながります）</div>
+        <div class="hint center">撮影側でこの番号を入力（次回からは自動でつながります）</div>
         <div id="code">------</div>
         <div class="row" style="justify-content:center">
           <button class="sub" onclick="newCode()">番号を変える</button>
@@ -126,8 +126,8 @@
         <div class="hint">手動接続（2台を同じWi-Fiかテザリングに）</div>
         <button id="copyOffer" disabled onclick="copyText(offerText,'offerFallback',setupMsg)">① 接続コードをコピー</button>
         <textarea id="offerFallback" style="display:none" readonly></textarea>
-        <div class="hint">② iPhoneで「手動でつなぐ」→「iPadのコードを貼り付け」→「返事をコピー」</div>
-        <button id="pasteAnswer" disabled onclick="acceptAnswer()">③ iPhoneの返事を貼り付け</button>
+        <div class="hint">② 撮影側で「手動でつなぐ」→「表示側のコードを貼り付け」→「返事をコピー」</div>
+        <button id="pasteAnswer" disabled onclick="acceptAnswer()">③ 撮影側の返事を貼り付け</button>
         <textarea id="answerInput" placeholder="うまく貼り付けられない場合は、ここに手動で貼り付けてから③を押す"></textarea>
         <button class="link" onclick="showAutoDisplay()">番号でつなぐ方式に戻る</button>
       </div>
@@ -136,7 +136,7 @@
   </div>
 </div>
 
-<!-- ================= 撮影側（iPhone） ================= -->
+<!-- ================= 撮影側 ================= -->
 <div id="camera" class="screen">
   <video id="preview" muted playsinline autoplay></video>
   <div id="camPanel">
@@ -150,7 +150,7 @@
     </div>
     <div id="camManual" class="col">
       <div class="row">
-        <button onclick="acceptOffer()">① iPadのコードを貼り付け</button>
+        <button onclick="acceptOffer()">① 表示側のコードを貼り付け</button>
         <button id="copyAnswer" disabled onclick="copyText(answerText,'answerFallback',camMsg)">② 返事をコピー</button>
         <button class="sub" onclick="flipCamera()">カメラ切替</button>
       </div>
@@ -235,7 +235,7 @@ function watchState(pc, onChange){
 let role = null;
 
 /* ========================================================
-   表示側（iPad）
+   表示側
    ======================================================== */
 const recv = $('recv'), out = $('out'), octx = out.getContext('2d');
 const cap = document.createElement('canvas'), cctx = cap.getContext('2d');
@@ -268,7 +268,7 @@ function startDisplayPeer(){
   setupMsg('サーバーに接続中…');
   const p = new Peer(PREFIX + myCode);
   displayPeer = p;
-  p.on('open', () => { if (p === displayPeer) { setupMsg('iPhoneからの接続を待っています'); $('badgeCode').textContent = '番号 ' + myCode; } });
+  p.on('open', () => { if (p === displayPeer) { setupMsg('撮影側からの接続を待っています'); $('badgeCode').textContent = '番号 ' + myCode; } });
   p.on('error', e => {
     if (p !== displayPeer) return;
     if (e.type === 'unavailable-id') {
@@ -284,7 +284,7 @@ function startDisplayPeer(){
   });
   p.on('disconnected', () => { if (p === displayPeer) { try { p.reconnect(); } catch(e){} } });
   p.on('call', call => {
-    call.answer();  // iPad側は受信のみ
+    call.answer();  // 表示側は受信のみ
     call.on('stream', s => onRemoteStream(s));
     call.on('close', () => onRemoteLost());
     if (call.peerConnection) watchState(call.peerConnection, st => { if (st === 'failed' || st === 'disconnected') onRemoteLost(); });
@@ -308,12 +308,12 @@ function onRemoteStream(s){
   setStatus('受信中');
 }
 function onRemoteLost(){
-  setStatus(dpc ? '切断されました（手動接続はやり直しが必要です）' : '切断されました。iPhoneの再接続を待っています');
+  setStatus(dpc ? '切断されました（手動接続はやり直しが必要です）' : '切断されました。撮影側の再接続を待っています');
 }
 function openSetup(){ $('setup').style.display = 'flex'; $('btnCloseSetup').style.display = recv.srcObject ? '' : 'none'; }
 function closeSetup(){ $('setup').style.display = 'none'; }
 
-// ---- 手動接続（iPad側） ----
+// ---- 手動接続（表示側） ----
 async function showManualDisplay(){
   $('setupAuto').style.display = 'none'; $('setupManual').style.display = 'flex';
   if (dpc) return;
@@ -335,7 +335,7 @@ function showAutoDisplay(){
 }
 async function acceptAnswer(){
   const ans = unpack(TAG_ANSWER, await readClip('answerInput'));
-  if (!ans) { setupMsg('iPhoneの返事が見つかりません。iPhoneで②を押してから、もう一度③を押してください'); return; }
+  if (!ans) { setupMsg('撮影側の返事が見つかりません。撮影側で②を押してから、もう一度③を押してください'); return; }
   try { await dpc.setRemoteDescription(ans); setupMsg('接続中…'); }
   catch(e){ setupMsg('接続に失敗しました: ' + e.message + '（「番号でつなぐ方式に戻る」→「手動でつなぐ」でやり直し）'); }
 }
@@ -572,7 +572,7 @@ async function shareVideo(){
 function closeSave(){ $('saveBar').style.display = 'none'; }
 
 /* ========================================================
-   撮影側（iPhone）
+   撮影側
    ======================================================== */
 const preview = $('preview');
 let stream = null, facing = 'environment';
@@ -600,7 +600,7 @@ async function startCamera(){
   if (!hasPeerJS()) { showManualCamera(); camMsg('ネットにつながっていないため、手動接続を使ってください'); return; }
   targetCode = store('dlycam-target');
   if (targetCode) { $('codeInput').value = targetCode; connectAuto(); }
-  else camMsg('iPadに出ている番号を入力して「接続」');
+  else camMsg('表示側に出ている番号を入力して「接続」');
 }
 
 function ensureCamPeer(){
@@ -610,7 +610,7 @@ function ensureCamPeer(){
     if (!camPeer || camPeer.destroyed) {
       camPeer = new Peer();
       camPeer.on('error', e => {
-        if (e.type === 'peer-unavailable') { camMsg('iPadが見つかりません（番号を確認／iPadで表示画面を開いているか）。再試行します…'); scheduleRetry(); }
+        if (e.type === 'peer-unavailable') { camMsg('表示側が見つかりません（番号を確認／表示側の画面を開いているか）。再試行します…'); scheduleRetry(); }
         else if (e.type === 'network' || e.type === 'server-error' || e.type === 'socket-error' || e.type === 'socket-closed') { camMsg('サーバーにつながりません。再試行します…'); scheduleRetry(); }
         else camMsg('エラー: ' + e.type);
       });
@@ -667,24 +667,24 @@ async function cameraResume(){
   }
 }
 
-// ---- 手動接続（iPhone側） ----
+// ---- 手動接続（撮影側） ----
 function showManualCamera(){
   camMode = 'manual'; clearTimeout(retryTimer);
   if (call) { const old = call; call = null; try { old.close(); } catch(e){} }
   $('camAuto').style.display = 'none'; $('camManual').style.display = 'flex';
-  camMsg('iPadで「手動でつなぐ」→①を押してから、ここで①を押してください');
+  camMsg('表示側で「手動でつなぐ」→①を押してから、ここで①を押してください');
 }
 function showAutoCamera(){
   camMode = 'auto';
   if (cpc) { cpc.close(); cpc = null; }
   $('camManual').style.display = 'none'; $('camAuto').style.display = 'flex';
   if (!hasPeerJS()) { camMsg('ネットにつながっていないため、番号方式は使えません'); return; }
-  if (targetCode) connectAuto(); else camMsg('iPadに出ている番号を入力して「接続」');
+  if (targetCode) connectAuto(); else camMsg('表示側に出ている番号を入力して「接続」');
 }
 async function acceptOffer(){
   if (!cameraAlive()) { try { await openCamera(); } catch(e){ camMsg('カメラを使えません'); return; } }
   const offer = unpack(TAG_OFFER, await readClip('offerInput'));
-  if (!offer) { camMsg('iPadのコードが見つかりません。iPadで①を押してから、もう一度①を押してください'); return; }
+  if (!offer) { camMsg('表示側のコードが見つかりません。表示側で①を押してから、もう一度①を押してください'); return; }
   if (cpc) cpc.close();
   cpc = new RTCPeerConnection(RTC_CONF);
   const pc = cpc;
@@ -702,7 +702,7 @@ async function acceptOffer(){
     answerText = pack(TAG_ANSWER, pc.localDescription);
     $('copyAnswer').disabled = false;
     $('offerInput').value = '';
-    camMsg('②を押してコピー → iPadで③を押してください');
+    camMsg('②を押してコピー → 表示側で③を押してください');
   } catch(e){ camMsg('失敗しました: ' + e.message); }
 }
 
