@@ -139,6 +139,44 @@
   .toggle input:focus-visible + .btn{outline:3px solid var(--amber);outline-offset:2px}
   select{font:inherit;font-size:15px;height:50px;padding:0 12px;border-radius:14px;border:none;background:rgba(238,242,247,.08);color:var(--paper)}
   .divider{width:1px;height:30px;background:var(--line)}
+  .more{display:flex;flex-direction:column;gap:12px}
+  #btnShowPanel{display:none;position:absolute;left:50%;transform:translateX(-50%);bottom:calc(env(safe-area-inset-bottom) + 14px);
+    background:rgba(15,27,45,.8);-webkit-backdrop-filter:blur(12px);backdrop-filter:blur(12px);border:1px solid rgba(238,242,247,.12)}
+  #btnShowPanel.show{display:inline-flex}
+  #btnMore{display:none}
+  #btnMore.on{background:var(--paper);color:var(--ink)}
+  /* スマホなど幅の狭い画面：普段は再生操作と遅延だけ。録画・ズーム等は「その他」で開く */
+  @media (max-width:760px){
+    #panel{left:8px;right:8px;bottom:calc(env(safe-area-inset-bottom) + 8px);padding:10px;gap:8px;border-radius:20px}
+    #panel .btn{height:44px;padding:0 12px;font-size:15px}
+    #panel .btn.icon{width:44px;padding:0}
+    #panel .seg{padding:3px}
+    #panel .seg .btn{height:38px;padding:0 9px;font-size:14px}
+    #btnPlay span,#btnLive span{display:none}
+    #btnPlay{width:44px;padding:0}
+    #btnLive{width:44px;padding:0}
+    #btnMore{display:inline-flex}
+    #panel:not(.expanded) .more{display:none}
+    .more{gap:8px}
+    .delay{min-width:auto}
+    #delayVal{font-size:26px}
+    .lbl{min-width:auto;width:100%}
+    #seekVal{min-width:auto;font-size:13px}
+    #panel select{height:44px}
+    #rZoom{min-width:120px}
+  }
+  /* スマホ横向き：パネルは右側に寄せ、映像は左側に収める */
+  @media (orientation:landscape) and (max-height:520px){
+    #panel{left:auto;top:8px;right:8px;bottom:8px;width:min(330px,46vw);overflow-y:auto;align-content:flex-start}
+    #display{justify-content:flex-start}
+    #status{max-width:40vw}
+    #badge{right:auto;left:calc(min(330px,46vw) * 0 + 12px);top:auto;bottom:12px}
+    #seekVal{width:100%}
+  }
+  /* 縦向き：映像はパネルの上に収める */
+  @media (orientation:portrait){
+    #display{align-items:flex-start;padding-top:calc(env(safe-area-inset-top) + 64px)}
+  }
 
   #saveBar{display:none;position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);width:min(360px,90vw);padding:26px 22px 20px;
     border-radius:28px;background:var(--panel);border:1.5px solid var(--line);text-align:center;box-shadow:0 24px 60px rgba(0,0,0,.5)}
@@ -233,7 +271,7 @@
     <li><i>2</i>撮る端末で「撮影側」を開き、番号を入力</li>
     <li><i>3</i>撮影側を置いて動き、表示側で確認</li>
   </ol>
-  <div class="ver">バージョン 0.5</div>
+  <div class="ver">バージョン 0.6</div>
 </div>
 
 <!-- ================= 表示側 ================= -->
@@ -241,7 +279,7 @@
   <canvas id="out"></canvas>
   <video id="recv" muted playsinline autoplay></video>
   <div id="status" class="pill" style="display:none"><span></span></div>
-  <div id="badge"><span id="recDot" class="pill">録画中</span><span id="badgeCode" class="pill"></span><span class="pill" id="verBadge">v0.5</span></div>
+  <div id="badge"><span id="recDot" class="pill">録画中</span><span id="badgeCode" class="pill"></span><span class="pill" id="verBadge">v0.6</span></div>
 
   <div id="panel" class="hidden">
     <div class="bar" id="seekRow">
@@ -257,30 +295,39 @@
         <button id="rate05" class="btn" onclick="setRate(0.5)">0.5x</button>
         <button id="rate025" class="btn" onclick="setRate(0.25)">0.25x</button>
       </div>
-      <button id="btnLive" class="btn" data-icon="live" onclick="goLive()"><span>ライブに戻る</span></button>
+      <button id="btnLive" class="btn" data-icon="live" onclick="goLive()" aria-label="ライブに戻る"><span>ライブに戻る</span></button>
       <span class="grow"></span>
-      <button id="btnRec" class="btn rec" onclick="toggleRecord()"></button>
-      <button id="btnClip" class="btn" data-icon="clip" onclick="saveClip()"><span id="clipLabel">直前を保存</span></button>
-      <select id="clipSec" aria-label="保存する長さ">
-        <option value="10">10秒</option>
-        <option value="20" selected>20秒</option>
-        <option value="30">30秒</option>
-        <option value="60">60秒</option>
-      </select>
-    </div>
-    <div class="bar" id="camCtlRow" style="display:none">
-      <small class="lbl">撮影側のズーム</small>
-      <div id="rLens" class="seg" role="group" aria-label="撮影側のレンズ"></div>
-      <input id="rZoom" type="range" min="1" max="4" step="0.1" value="1" aria-label="撮影側のズーム">
-      <span id="rZoomVal" class="zval">1.0x</span>
+      <button id="btnMore" class="btn icon" data-icon="more" onclick="toggleMore()" aria-label="その他の操作" aria-expanded="false"></button>
+      <button class="btn icon" data-icon="down" onclick="setPanel(false)" aria-label="操作パネルを閉じる"></button>
     </div>
     <div class="bar">
       <div class="delay"><small>遅延</small><span id="delayVal">10.0</span><em>秒</em></div>
       <input id="delay" type="range" min="0" max="30" step="0.5" value="10" aria-label="遅延の秒数">
-      <label class="toggle"><input id="mirror" type="checkbox"><span class="btn" data-icon="mirror"><span>左右反転</span></span></label>
-      <button class="btn icon" data-icon="link" onclick="openSetup()" aria-label="接続設定"></button>
+    </div>
+    <div class="more">
+      <div class="bar">
+        <button id="btnRec" class="btn rec" onclick="toggleRecord()"></button>
+        <button id="btnClip" class="btn" data-icon="clip" onclick="saveClip()"><span id="clipLabel">直前を保存</span></button>
+        <select id="clipSec" aria-label="保存する長さ">
+          <option value="10">10秒</option>
+          <option value="20" selected>20秒</option>
+          <option value="30">30秒</option>
+          <option value="60">60秒</option>
+        </select>
+        <span class="grow"></span>
+        <label class="toggle"><input id="mirror" type="checkbox"><span class="btn" data-icon="mirror"><span>左右反転</span></span></label>
+        <button class="btn icon" data-icon="link" onclick="openSetup()" aria-label="接続設定"></button>
+      </div>
+      <div class="bar" id="camCtlRow" style="display:none">
+        <small class="lbl">撮影側のズーム</small>
+        <div id="rLens" class="seg" role="group" aria-label="撮影側のレンズ"></div>
+        <input id="rZoom" type="range" min="1" max="4" step="0.1" value="1" aria-label="撮影側のズーム">
+        <span id="rZoomVal" class="zval">1.0x</span>
+      </div>
     </div>
   </div>
+
+  <button id="btnShowPanel" class="btn" data-icon="up" onclick="setPanel(true)"><span>操作パネル</span></button>
 
   <div id="saveBar" role="dialog" aria-modal="true">
     <div class="big-ic" data-icon="check"></div>
@@ -383,6 +430,9 @@ const ICON = {
   copy:   S + '<rect x="8.5" y="8.5" width="11.5" height="11.5" rx="2"/><path d="M15.5 8.5V5a1 1 0 0 0-1-1H5a1 1 0 0 0-1 1v9.5a1 1 0 0 0 1 1h3.5"/></svg>',
   paste:  S + '<rect x="5" y="5" width="14" height="16" rx="2"/><path d="M9 3.5h6v3H9z"/><path d="M9 12h6M9 16h4"/></svg>',
   refresh:S + '<path d="M19.5 8.5A8 8 0 0 0 5 9M4.5 15.5A8 8 0 0 0 19 15"/><path d="M19.5 4v4.5H15M4.5 20v-4.5H9"/></svg>',
+  more:   S + '<circle cx="5.5" cy="12" r="1.8" fill="currentColor" stroke="none"/><circle cx="12" cy="12" r="1.8" fill="currentColor" stroke="none"/><circle cx="18.5" cy="12" r="1.8" fill="currentColor" stroke="none"/></svg>',
+  down:   S + '<path d="M6 9.5l6 6 6-6"/></svg>',
+  up:     S + '<path d="M6 14.5l6-6 6 6"/></svg>',
   go:     S + '<path d="M5 12h13M13 6.5l5.5 5.5-5.5 5.5"/></svg>',
   flip:   S + '<path d="M3.5 8.5h3l2-2.5h7l2 2.5h3V19h-17z"/><path d="M9.3 13.6a2.8 2.8 0 0 1 4.9-1.9M14.7 13a2.8 2.8 0 0 1-4.9 1.9"/><path d="M14.4 10.4v1.6h-1.6M9.6 16.2v-1.6h1.6"/></svg>',
 };
@@ -569,6 +619,7 @@ function onRemoteStream(s){
   recv.play().catch(() => {});
   closeSetup();
   $('panel').classList.remove('hidden');
+  setTimeout(fit, 0);
   setStatus('受信中');
 }
 function onRemoteLost(){
@@ -699,12 +750,30 @@ function drawFrame(img){
 }
 function fit(){
   if (!out.width) return;
-  const s = Math.min(innerWidth / out.width, innerHeight / out.height);
+  const portrait = innerHeight > innerWidth;
+  const panel = $('panel');
+  const open = !panel.classList.contains('hidden');
+  const side = !portrait && innerHeight <= 520;   // スマホ横向き：パネルは右側
+  const top = portrait ? 64 : 0;
+  const ph = (portrait && open) ? panel.offsetHeight + 16 : 0;
+  const pw = (side && open) ? panel.offsetWidth + 16 : 0;
+  const s = Math.min(Math.max(80, innerWidth - pw) / out.width, Math.max(80, innerHeight - top - ph) / out.height);
   out.style.width = Math.floor(out.width * s) + 'px';
   out.style.height = Math.floor(out.height * s) + 'px';
 }
+function setPanel(open){
+  $('panel').classList.toggle('hidden', !open);
+  $('btnShowPanel').classList.toggle('show', !open && !!recv.srcObject);
+  fit();
+}
+function toggleMore(){
+  const p = $('panel'), on = p.classList.toggle('expanded');
+  $('btnMore').classList.toggle('on', on);
+  $('btnMore').setAttribute('aria-expanded', on);
+  fit();
+}
 addEventListener('resize', fit);
-out.addEventListener('click', () => $('panel').classList.toggle('hidden'));  // タップで操作パネル表示/非表示
+out.addEventListener('click', () => setPanel($('panel').classList.contains('hidden')));  // タップで操作パネル表示/非表示
 
 // ---- 撮影側カメラの遠隔操作（表示側） ----
 function onCtlMsg(m){
@@ -714,7 +783,7 @@ function onCtlMsg(m){
   const min = num(m.min), max = num(m.max), step = num(m.step), z = num(m.zoom);
   if (min === null || max === null || z === null) return;
   gotCaps = true;
-  $('camCtlRow').style.display = 'flex';
+  if ($('camCtlRow').style.display !== 'flex') { $('camCtlRow').style.display = 'flex'; fit(); }
   const r = $('rZoom');
   r.min = min; r.max = max; r.step = step || 0.1;
   if (!rDragging) { r.value = z; $('rZoomVal').textContent = z.toFixed(1) + 'x'; }
@@ -768,6 +837,7 @@ function updatePlayUI(){
   $('rate025').classList.toggle('on', rate === 0.25);
   $('btnLive').classList.toggle('on', !live);
   $('seekRow').style.display = live ? 'none' : 'flex';
+  fit();
 }
 // 一時停止中などの位置スライダー（左端=溜まっている一番古い所、右端=ライブの位置）
 function seekRange(now){
