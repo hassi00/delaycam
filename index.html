@@ -4,165 +4,360 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
 <meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="theme-color" content="#0F1B2D">
 <title>遅延カメラ</title>
 <script src="https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js"></script>
 <style>
-  html,body{margin:0;height:100%;background:#000;color:#fff;font-family:-apple-system,system-ui,sans-serif;overflow:hidden;-webkit-user-select:none;user-select:none}
+  :root{
+    --ink:#0F1B2D; --panel:#17283F; --line:#2B3F5C; --paper:#EEF2F7; --mute:#93A3BA;
+    --amber:#FFB547; --rec:#FF5A5F; --ok:#4ADE9B;
+    --num: ui-rounded, "SF Pro Rounded", "Hiragino Maru Gothic ProN", -apple-system, sans-serif;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;height:100%;background:var(--ink);color:var(--paper);
+    font-family:-apple-system,"Hiragino Sans","Noto Sans JP",system-ui,sans-serif;overflow:hidden;
+    -webkit-user-select:none;user-select:none;-webkit-tap-highlight-color:transparent}
+  svg{display:block}
   .screen{display:none;position:fixed;inset:0}
   .screen.active{display:flex}
-  #home{flex-direction:column;align-items:center;justify-content:center;gap:24px}
-  h1{font-weight:600;margin:0 0 8px}
-  button{font-size:18px;padding:12px 18px;border-radius:12px;border:none;background:#2a6df4;color:#fff;white-space:nowrap}
-  button:disabled{background:#333;color:#777}
-  button.sub{background:#444}
-  button.on{background:#e8a317;color:#000}
-  button.rec{background:#c62828}
-  .big{width:280px;font-size:22px;padding:20px}
-  .hint{color:#aaa;font-size:14px;line-height:1.6}
-  .center{text-align:center}
-  .link{background:none;color:#7fb0ff;text-decoration:underline;font-size:16px;padding:6px}
-  textarea{width:100%;box-sizing:border-box;height:56px;font-size:12px;border-radius:8px;border:none;padding:6px;background:#222;color:#ddd;-webkit-user-select:text;user-select:text}
-  input[type=text],input[inputmode]{font-size:28px;width:6.5em;text-align:center;padding:8px;border-radius:10px;border:none;letter-spacing:.2em}
-  .msg{font-size:15px;color:#ffd479;min-height:1.4em}
-  .col{display:flex;flex-direction:column;gap:12px}
-  .row{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
-  select{font-size:17px;padding:10px;border-radius:10px}
 
-  /* 表示側 */
-  #display{align-items:center;justify-content:center}
-  #out{display:block;background:#111}
+  /* ---------- ボタン ---------- */
+  button{font:inherit;color:inherit;border:none;background:none;cursor:pointer}
+  .btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;height:50px;padding:0 18px;
+    border-radius:14px;background:rgba(238,242,247,.08);color:var(--paper);font-size:16px;font-weight:600;white-space:nowrap;
+    transition:transform .08s, background .15s}
+  .btn:active{transform:scale(.96)}
+  .btn svg{width:22px;height:22px;flex:none}
+  .btn.primary{background:var(--amber);color:var(--ink)}
+  .btn.icon{width:50px;padding:0}
+  .btn.on{background:var(--paper);color:var(--ink)}
+  .btn.rec{color:var(--rec)}
+  .btn.rec.recording{background:var(--rec);color:#fff}
+  .btn:disabled{opacity:.35}
+  .btn:focus-visible,.card:focus-visible,input:focus-visible,select:focus-visible{outline:3px solid var(--amber);outline-offset:2px}
+  .link{color:var(--mute);font-size:15px;text-decoration:underline;text-underline-offset:3px;padding:8px}
+  .seg{display:inline-flex;background:rgba(238,242,247,.08);border-radius:14px;padding:4px;gap:2px}
+  .seg .btn{height:42px;padding:0 14px;background:none;border-radius:10px;font-family:var(--num)}
+  .seg .btn.on{background:var(--paper);color:var(--ink)}
+
+  /* ---------- ホーム ---------- */
+  #home{flex-direction:column;align-items:center;justify-content:center;gap:28px;padding:24px;overflow:auto}
+  .title{text-align:center}
+  .title h1{margin:0;font-size:34px;font-weight:800;letter-spacing:.02em}
+  .title p{margin:8px 0 0;color:var(--mute);font-size:16px}
+  .flow{display:flex;align-items:center;gap:14px}
+  .card{display:flex;flex-direction:column;align-items:center;gap:10px;width:230px;padding:22px 18px 20px;
+    border-radius:28px;background:var(--panel);border:1.5px solid var(--line);transition:transform .1s,border-color .15s}
+  .card:active{transform:scale(.97);border-color:var(--amber)}
+  .card .art{width:150px;height:130px}
+  .card b{font-size:24px;font-weight:800}
+  .card small{color:var(--mute);font-size:15px}
+  .lag{display:flex;flex-direction:column;align-items:center;gap:6px;color:var(--amber);font-size:13px;font-weight:700}
+  .lag .clock{width:58px;height:58px;border-radius:50%;border:2px solid var(--amber);display:flex;align-items:center;justify-content:center;
+    font-family:var(--num);font-size:17px;font-weight:700}
+  .lag svg{width:70px;height:16px}
+  .steps{display:flex;gap:10px;margin:0;padding:0;list-style:none;color:var(--mute);font-size:14px;flex-wrap:wrap;justify-content:center}
+  .steps li{display:flex;align-items:center;gap:8px;background:rgba(238,242,247,.05);padding:8px 14px 8px 8px;border-radius:999px}
+  .steps i{font-style:normal;width:24px;height:24px;border-radius:50%;background:var(--line);color:var(--paper);
+    display:flex;align-items:center;justify-content:center;font-family:var(--num);font-weight:700;font-size:13px}
+  @media (max-width:600px){
+    .flow{flex-direction:column;gap:8px}
+    .card{width:min(300px,86vw);flex-direction:row;gap:14px;padding:14px 18px;text-align:left}
+    .card .art{width:84px;height:76px}
+    .card .txt{display:flex;flex-direction:column;gap:2px}
+    .lag{flex-direction:row}
+    .lag svg{transform:rotate(90deg);width:40px}
+    .steps{flex-direction:column;align-items:stretch}
+  }
+  .card .txt{display:flex;flex-direction:column;align-items:inherit;gap:4px}
+
+  /* ---------- 共通：状態ピル ---------- */
+  .pill{display:inline-flex;align-items:center;gap:8px;padding:7px 12px;border-radius:999px;font-size:14px;font-weight:600;
+    background:rgba(15,27,45,.72);-webkit-backdrop-filter:blur(12px);backdrop-filter:blur(12px)}
+  .pill::before{content:"";width:9px;height:9px;border-radius:50%;background:var(--amber);flex:none}
+  .pill[data-tone=ok]::before{background:var(--ok)}
+  .pill[data-tone=bad]::before{background:var(--rec)}
+
+  /* ---------- 表示側 ---------- */
+  #display{align-items:center;justify-content:center;background:#000}
+  #out{display:block}
   #recv{position:absolute;width:2px;height:2px;opacity:0;pointer-events:none}
-  #setup{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;background:#000;overflow:auto}
-  #setupBox{width:min(560px,92vw)}
-  #code{font-size:88px;font-weight:700;letter-spacing:.12em;text-align:center}
-  #status{position:absolute;top:calc(env(safe-area-inset-top) + 10px);left:12px;font-size:15px;background:rgba(0,0,0,.6);padding:6px 10px;border-radius:8px;max-width:70vw}
-  #badge{position:absolute;top:calc(env(safe-area-inset-top) + 10px);right:12px;font-size:15px;background:rgba(0,0,0,.6);padding:6px 10px;border-radius:8px}
-  #recDot{display:none;color:#ff5252;font-weight:700}
-  #panel{position:absolute;left:0;right:0;bottom:0;padding:12px 16px calc(env(safe-area-inset-bottom) + 12px);background:rgba(0,0,0,.7);display:flex;flex-direction:column;gap:10px}
-  #panel.hidden{display:none}
-  #panel input[type=range]{flex:1;min-width:180px;height:34px}
-  .val{font-size:18px;font-variant-numeric:tabular-nums;min-width:6.5em}
-  label{font-size:17px;display:flex;align-items:center;gap:6px}
-  input[type=checkbox]{width:24px;height:24px}
-  #seekRow{display:none}
-  #saveBar{display:none;position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);background:#222;padding:20px;border-radius:16px;text-align:center}
+  #status{position:absolute;top:calc(env(safe-area-inset-top) + 12px);left:12px;max-width:70vw}
+  #badge{position:absolute;top:calc(env(safe-area-inset-top) + 12px);right:12px;display:flex;gap:8px}
+  #recDot{display:none;color:#fff;background:var(--rec)}
+  #recDot::before{background:#fff;animation:blink 1.2s infinite}
+  @keyframes blink{50%{opacity:.2}}
+  @media (prefers-reduced-motion:reduce){#recDot::before{animation:none}}
+  #badgeCode{font-family:var(--num);letter-spacing:.06em}
+  #badgeCode::before{display:none}
+  #badgeCode:empty{display:none}
 
-  /* 撮影側 */
-  #camera{flex-direction:column}
-  #preview{flex:1;width:100%;object-fit:contain;background:#111;min-height:0}
-  #camPanel{padding:12px 16px calc(env(safe-area-inset-bottom) + 12px);display:flex;flex-direction:column;gap:10px;background:#000}
+  #panel{position:absolute;left:12px;right:12px;bottom:calc(env(safe-area-inset-bottom) + 12px);padding:14px;border-radius:24px;
+    background:rgba(15,27,45,.8);-webkit-backdrop-filter:blur(18px);backdrop-filter:blur(18px);border:1px solid rgba(238,242,247,.08);
+    display:flex;flex-direction:column;gap:12px}
+  #panel.hidden{display:none}
+  .bar{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+  .grow{flex:1}
+  #btnLive.on{background:var(--rec);color:#fff}
+  .delay{display:flex;align-items:baseline;gap:6px;min-width:150px}
+  .delay small{color:var(--mute);font-size:14px}
+  #delayVal{font-family:var(--num);font-size:34px;font-weight:800;color:var(--amber);font-variant-numeric:tabular-nums}
+  .delay em{font-style:normal;color:var(--amber);font-weight:700}
+  #seekRow{display:none}
+  #seekVal{font-family:var(--num);color:var(--mute);font-size:15px;min-width:170px}
+  input[type=range]{-webkit-appearance:none;appearance:none;flex:1;min-width:160px;height:36px;background:none}
+  input[type=range]::-webkit-slider-runnable-track{height:6px;border-radius:3px;background:var(--line)}
+  input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:28px;height:28px;margin-top:-11px;border-radius:50%;background:var(--amber);border:3px solid var(--ink)}
+  #seek::-webkit-slider-thumb{background:var(--paper)}
+  .toggle{position:relative}
+  .toggle input{position:absolute;opacity:0;width:0;height:0}
+  .toggle .btn{pointer-events:none}
+  .toggle input:checked + .btn{background:var(--paper);color:var(--ink)}
+  .toggle input:focus-visible + .btn{outline:3px solid var(--amber);outline-offset:2px}
+  select{font:inherit;font-size:15px;height:50px;padding:0 12px;border-radius:14px;border:none;background:rgba(238,242,247,.08);color:var(--paper)}
+  .divider{width:1px;height:30px;background:var(--line)}
+
+  #saveBar{display:none;position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);width:min(360px,90vw);padding:26px 22px 20px;
+    border-radius:28px;background:var(--panel);border:1.5px solid var(--line);text-align:center;box-shadow:0 24px 60px rgba(0,0,0,.5)}
+  #saveBar .big-ic{width:56px;height:56px;margin:0 auto 12px;border-radius:50%;background:rgba(74,222,155,.15);color:var(--ok);display:flex;align-items:center;justify-content:center}
+  #saveBar .big-ic svg{width:28px;height:28px}
+  #saveMsg{font-size:17px;font-weight:700;margin-bottom:16px}
+  #saveBar .bar{justify-content:center}
+  .note{color:var(--mute);font-size:13px;margin-top:12px;line-height:1.6}
+
+  #setup{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;background:var(--ink);overflow:auto;padding:24px}
+  #setupBox{width:min(560px,100%);display:flex;flex-direction:column;align-items:center;gap:18px;text-align:center}
+  .mini{width:220px;height:70px;color:var(--mute)}
+  #setupAuto,#setupManual{display:flex;flex-direction:column;align-items:center;gap:16px;width:100%}
+  .lead{font-size:20px;font-weight:700}
+  .sub{color:var(--mute);font-size:14px;margin-top:-8px}
+  #code{display:flex;gap:8px}
+  #code span{width:62px;height:82px;border-radius:16px;background:var(--panel);border:1.5px solid var(--line);
+    display:flex;align-items:center;justify-content:center;font-family:var(--num);font-size:46px;font-weight:800}
+  @media (max-width:500px){#code span{width:44px;height:60px;font-size:32px}}
+  .manual-step{display:flex;flex-direction:column;gap:8px;width:100%;text-align:left}
+  .manual-step .btn{width:100%}
+  .hint{color:var(--mute);font-size:14px;line-height:1.6}
+  textarea{width:100%;height:56px;font-size:12px;border-radius:12px;border:1px solid var(--line);padding:8px;background:var(--panel);color:var(--paper);
+    -webkit-user-select:text;user-select:text}
+  #setupMsgEl{color:var(--amber);font-size:15px;min-height:1.4em}
+
+  /* ---------- 撮影側 ---------- */
+  #camera{flex-direction:column;background:#000}
+  .finder{position:relative;flex:1;min-height:0;display:flex}
+  #preview{flex:1;width:100%;object-fit:contain;min-height:0}
+  .corner{position:absolute;width:34px;height:34px;border:3px solid rgba(238,242,247,.75);pointer-events:none}
+  .c1{top:calc(env(safe-area-inset-top) + 16px);left:16px;border-right:0;border-bottom:0;border-top-left-radius:10px}
+  .c2{top:calc(env(safe-area-inset-top) + 16px);right:16px;border-left:0;border-bottom:0;border-top-right-radius:10px}
+  .c3{bottom:36px;left:16px;border-right:0;border-top:0;border-bottom-left-radius:10px}
+  .c4{bottom:36px;right:16px;border-left:0;border-top:0;border-bottom-right-radius:10px}
+  #camMsgEl{position:absolute;top:calc(env(safe-area-inset-top) + 16px);left:50%;transform:translateX(-50%);max-width:calc(100% - 120px);text-align:center}
+  #camPanel{padding:16px 16px calc(env(safe-area-inset-bottom) + 14px);background:var(--ink);border-top-left-radius:24px;border-top-right-radius:24px;
+    display:flex;flex-direction:column;gap:10px;margin-top:-20px;position:relative}
+  #camAuto,#camManual{display:flex;flex-direction:column;gap:10px}
   #camManual{display:none}
+  .field{display:flex;gap:10px}
+  #codeInput{flex:1;min-width:0;height:56px;border-radius:14px;border:1.5px solid var(--line);background:var(--panel);color:var(--paper);
+    font-family:var(--num);font-size:28px;font-weight:700;text-align:center;letter-spacing:.3em;padding:0 0 0 .3em}
+  #codeInput::placeholder{color:var(--line)}
+  .field .btn{height:56px}
+  .label{color:var(--mute);font-size:13px}
 </style>
 </head>
 <body>
 
+<!-- ================= ホーム ================= -->
 <div id="home" class="screen active">
-  <h1>遅延カメラ</h1>
-  <button class="big" onclick="startDisplay()">表示側<br><span style="font-size:15px;opacity:.85">遅れた映像を見る</span></button>
-  <button class="big sub" onclick="startCamera()">撮影側<br><span style="font-size:15px;opacity:.85">カメラで撮って送る</span></button>
-  <div class="hint center">先に見る端末で「表示側」を押してください。<br>手動接続は2台を同じWi-Fi（またはテザリング）に。</div>
+  <div class="title">
+    <h1>遅延カメラ</h1>
+    <p>撮った映像を、少し遅れて別の画面に映します</p>
+  </div>
+
+  <div class="flow">
+    <button class="card" onclick="startCamera()">
+      <svg class="art" viewBox="0 0 150 130" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <rect x="52" y="8" width="46" height="74" rx="10"/>
+        <circle cx="75" cy="26" r="7"/>
+        <circle cx="88" cy="16" r="3.5" fill="#FF5A5F" stroke="none"/>
+        <path d="M75 82v12M75 94 50 124M75 94l25 30M75 94v30"/>
+        <path d="M30 34c-6 6-6 22 0 28M20 26c-11 11-11 33 0 44" stroke="#93A3BA" stroke-width="2.5"/>
+      </svg>
+      <span class="txt"><b>撮影側</b><small>カメラで撮って送る</small></span>
+    </button>
+
+    <div class="lag" aria-hidden="true">
+      <div class="clock">10<span style="font-size:11px">秒</span></div>
+      <svg viewBox="0 0 70 16" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M2 8h58" stroke-dasharray="2 7"/><path d="M58 2l8 6-8 6"/></svg>
+      <span>おくれて届く</span>
+    </div>
+
+    <button class="card" onclick="startDisplay()">
+      <svg class="art" viewBox="0 0 150 130" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <rect x="8" y="14" width="134" height="96" rx="12"/>
+        <circle cx="75" cy="44" r="8" stroke="#FFB547"/>
+        <path d="M75 52v24M75 76l-11 18M75 76l11 18M75 60l-16-8M75 60l18 6" stroke="#FFB547"/>
+        <text x="20" y="34" fill="#FFB547" stroke="none" font-size="13" font-weight="700" font-family="ui-rounded, -apple-system, sans-serif">-10.0</text>
+        <path d="M55 122h40"/>
+      </svg>
+      <span class="txt"><b>表示側</b><small>遅れた映像を見る</small></span>
+    </button>
+  </div>
+
+  <ol class="steps">
+    <li><i>1</i>見る端末で「表示側」</li>
+    <li><i>2</i>撮る端末で「撮影側」→ 番号を入力</li>
+    <li><i>3</i>動いてから画面でチェック</li>
+  </ol>
 </div>
 
 <!-- ================= 表示側 ================= -->
 <div id="display" class="screen">
   <canvas id="out"></canvas>
   <video id="recv" muted playsinline autoplay></video>
-  <div id="status"></div>
-  <div id="badge"><span id="recDot">● 録画中 </span><span id="badgeCode"></span></div>
+  <div id="status" class="pill" style="display:none"><span></span></div>
+  <div id="badge"><span id="recDot" class="pill">録画中</span><span id="badgeCode" class="pill"></span></div>
 
   <div id="panel" class="hidden">
-    <div class="row">
-      <button id="btnPlay" onclick="togglePause()">⏸ 一時停止</button>
-      <button class="sub" onclick="stepFrame(-1)">◀ コマ</button>
-      <button class="sub" onclick="stepFrame(1)">コマ ▶</button>
-      <button id="rate1" class="sub on" onclick="setRate(1)">1x</button>
-      <button id="rate05" class="sub" onclick="setRate(0.5)">0.5x</button>
-      <button id="rate025" class="sub" onclick="setRate(0.25)">0.25x</button>
-      <button id="btnLive" class="sub" onclick="goLive()">ライブに戻る</button>
+    <div class="bar" id="seekRow">
+      <span id="seekVal"></span>
+      <input id="seek" type="range" min="0" max="1000" value="1000" aria-label="再生位置">
     </div>
-    <div class="row" id="seekRow">
-      <span class="val" id="seekVal"></span>
-      <input id="seek" type="range" min="0" max="1000" value="1000">
-    </div>
-    <div class="row">
-      <span class="val" id="delayVal">遅延 10.0秒</span>
-      <input id="delay" type="range" min="1" max="30" step="0.5" value="10">
-      <label><input id="mirror" type="checkbox">左右反転</label>
-    </div>
-    <div class="row">
-      <button id="btnRec" class="rec" onclick="toggleRecord()">● 録画開始</button>
-      <button id="btnClip" onclick="saveClip()">直前を保存</button>
-      <select id="clipSec">
-        <option value="10">直前10秒</option>
-        <option value="20" selected>直前20秒</option>
-        <option value="30">直前30秒</option>
-        <option value="60">直前60秒</option>
+    <div class="bar">
+      <button id="btnPlay" class="btn" onclick="togglePause()"></button>
+      <button class="btn icon" data-icon="back" onclick="stepFrame(-1)" aria-label="1コマ戻る"></button>
+      <button class="btn icon" data-icon="fwd" onclick="stepFrame(1)" aria-label="1コマ進む"></button>
+      <div class="seg" role="group" aria-label="再生速度">
+        <button id="rate1" class="btn on" onclick="setRate(1)">1x</button>
+        <button id="rate05" class="btn" onclick="setRate(0.5)">0.5x</button>
+        <button id="rate025" class="btn" onclick="setRate(0.25)">0.25x</button>
+      </div>
+      <button id="btnLive" class="btn" data-icon="live" onclick="goLive()"><span>ライブに戻る</span></button>
+      <span class="grow"></span>
+      <button id="btnRec" class="btn rec" onclick="toggleRecord()"></button>
+      <button id="btnClip" class="btn" data-icon="clip" onclick="saveClip()"><span id="clipLabel">直前を保存</span></button>
+      <select id="clipSec" aria-label="保存する長さ">
+        <option value="10">10秒</option>
+        <option value="20" selected>20秒</option>
+        <option value="30">30秒</option>
+        <option value="60">60秒</option>
       </select>
-      <button class="sub" onclick="openSetup()">接続設定</button>
+    </div>
+    <div class="bar">
+      <div class="delay"><small>遅延</small><span id="delayVal">10.0</span><em>秒</em></div>
+      <input id="delay" type="range" min="1" max="30" step="0.5" value="10" aria-label="遅延の秒数">
+      <label class="toggle"><input id="mirror" type="checkbox"><span class="btn" data-icon="mirror"><span>左右反転</span></span></label>
+      <button class="btn icon" data-icon="link" onclick="openSetup()" aria-label="接続設定"></button>
     </div>
   </div>
 
-  <div id="saveBar">
-    <div id="saveMsg" style="margin-bottom:14px">動画ができました</div>
-    <div class="row" style="justify-content:center">
-      <button id="btnShare" onclick="shareVideo()">写真に保存</button>
-      <button class="sub" onclick="closeSave()">閉じる</button>
+  <div id="saveBar" role="dialog" aria-modal="true">
+    <div class="big-ic" data-icon="check"></div>
+    <div id="saveMsg">動画ができました</div>
+    <div class="bar">
+      <button id="btnShare" class="btn primary" data-icon="share" onclick="shareVideo()"><span>写真に保存</span></button>
+      <button class="btn" onclick="closeSave()">閉じる</button>
     </div>
-    <div class="hint" style="margin-top:10px">共有メニューが開いたら「ビデオを保存」を選んでください</div>
+    <div class="note">共有メニューが開いたら「ビデオを保存」を選んでください</div>
   </div>
 
   <div id="setup">
-    <div id="setupBox" class="col">
-      <div id="setupAuto" class="col">
-        <div class="hint center">撮影側でこの番号を入力（次回からは自動でつながります）</div>
-        <div id="code">------</div>
-        <div class="row" style="justify-content:center">
-          <button class="sub" onclick="newCode()">番号を変える</button>
-          <button class="sub" id="btnCloseSetup" style="display:none" onclick="closeSetup()">閉じる</button>
+    <div id="setupBox">
+      <svg class="mini" viewBox="0 0 220 70" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <rect x="20" y="8" width="32" height="54" rx="7"/><circle cx="36" cy="20" r="4.5"/>
+        <path d="M66 35h80" stroke="#FFB547" stroke-dasharray="2 7"/><path d="M142 29l7 6-7 6" stroke="#FFB547"/>
+        <rect x="160" y="12" width="52" height="40" rx="6"/><path d="M178 60h16"/>
+      </svg>
+      <div id="setupAuto">
+        <div class="lead">撮影側でこの番号を入力</div>
+        <div class="sub">次回からは自動でつながります</div>
+        <div id="code" aria-live="polite"></div>
+        <div class="bar" style="justify-content:center">
+          <button class="btn" data-icon="refresh" onclick="newCode()"><span>番号を変える</span></button>
+          <button class="btn" id="btnCloseSetup" style="display:none" onclick="closeSetup()">閉じる</button>
         </div>
-        <button class="link" onclick="showManualDisplay()">ネットがない場合：手動でつなぐ</button>
+        <button class="link" onclick="showManualDisplay()">ネットがない場合は手動でつなぐ</button>
       </div>
-      <div id="setupManual" class="col" style="display:none">
-        <div class="hint">手動接続（2台を同じWi-Fiかテザリングに）</div>
-        <button id="copyOffer" disabled onclick="copyText(offerText,'offerFallback',setupMsg)">① 接続コードをコピー</button>
-        <textarea id="offerFallback" style="display:none" readonly></textarea>
-        <div class="hint">② 撮影側で「手動でつなぐ」→「表示側のコードを貼り付け」→「返事をコピー」</div>
-        <button id="pasteAnswer" disabled onclick="acceptAnswer()">③ 撮影側の返事を貼り付け</button>
-        <textarea id="answerInput" placeholder="うまく貼り付けられない場合は、ここに手動で貼り付けてから③を押す"></textarea>
+      <div id="setupManual" style="display:none">
+        <div class="lead">手動でつなぐ</div>
+        <div class="sub">2台を同じWi-Fiかテザリングにつないでください</div>
+        <div class="manual-step">
+          <button id="copyOffer" class="btn primary" data-icon="copy" disabled onclick="copyText(offerText,'offerFallback',setupMsg)"><span>1. 接続コードをコピー</span></button>
+          <textarea id="offerFallback" style="display:none" readonly></textarea>
+        </div>
+        <div class="manual-step hint">2. 撮影側で「手動でつなぐ」→「表示側のコードを貼り付け」→「返事をコピー」</div>
+        <div class="manual-step">
+          <button id="pasteAnswer" class="btn primary" data-icon="paste" disabled onclick="acceptAnswer()"><span>3. 撮影側の返事を貼り付け</span></button>
+          <textarea id="answerInput" placeholder="うまく貼り付けられない場合は、ここに手動で貼り付けてから3を押す"></textarea>
+        </div>
         <button class="link" onclick="showAutoDisplay()">番号でつなぐ方式に戻る</button>
       </div>
-      <div id="setupMsgEl" class="msg center"></div>
+      <div id="setupMsgEl"></div>
     </div>
   </div>
 </div>
 
 <!-- ================= 撮影側 ================= -->
 <div id="camera" class="screen">
-  <video id="preview" muted playsinline autoplay></video>
+  <div class="finder">
+    <video id="preview" muted playsinline autoplay></video>
+    <i class="corner c1"></i><i class="corner c2"></i><i class="corner c3"></i><i class="corner c4"></i>
+    <div id="camMsgEl" class="pill"><span>カメラを起動中…</span></div>
+  </div>
   <div id="camPanel">
-    <div id="camAuto" class="col">
-      <div class="row">
-        <input id="codeInput" inputmode="numeric" maxlength="6" placeholder="000000">
-        <button onclick="connectAuto()">接続</button>
-        <button class="sub" onclick="flipCamera()">カメラ切替</button>
+    <div id="camAuto">
+      <div class="label">表示側に出ている番号</div>
+      <div class="field">
+        <input id="codeInput" inputmode="numeric" maxlength="6" placeholder="000000" aria-label="表示側の番号">
+        <button class="btn primary" data-icon="go" onclick="connectAuto()"><span>接続</span></button>
+        <button class="btn icon" data-icon="flip" onclick="flipCamera()" aria-label="カメラ切替"></button>
       </div>
-      <button class="link" style="align-self:flex-start" onclick="showManualCamera()">ネットがない場合：手動でつなぐ</button>
+      <button class="link" style="align-self:flex-start" onclick="showManualCamera()">ネットがない場合は手動でつなぐ</button>
     </div>
-    <div id="camManual" class="col">
-      <div class="row">
-        <button onclick="acceptOffer()">① 表示側のコードを貼り付け</button>
-        <button id="copyAnswer" disabled onclick="copyText(answerText,'answerFallback',camMsg)">② 返事をコピー</button>
-        <button class="sub" onclick="flipCamera()">カメラ切替</button>
+    <div id="camManual">
+      <div class="field">
+        <button class="btn primary grow" data-icon="paste" onclick="acceptOffer()"><span>1. 表示側のコードを貼り付け</span></button>
+        <button class="btn icon" data-icon="flip" onclick="flipCamera()" aria-label="カメラ切替"></button>
       </div>
-      <textarea id="offerInput" placeholder="うまく貼り付けられない場合は、ここに手動で貼り付けてから①を押す"></textarea>
+      <textarea id="offerInput" placeholder="うまく貼り付けられない場合は、ここに手動で貼り付けてから1を押す"></textarea>
+      <button id="copyAnswer" class="btn primary" data-icon="copy" disabled onclick="copyText(answerText,'answerFallback',camMsg)"><span>2. 返事をコピー</span></button>
       <textarea id="answerFallback" style="display:none" readonly></textarea>
       <button class="link" style="align-self:flex-start" onclick="showAutoCamera()">番号でつなぐ方式に戻る</button>
     </div>
-    <div id="camMsgEl" class="msg">カメラを起動中…</div>
   </div>
 </div>
 
 <script>
+/* ================= アイコン ================= */
+const S = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">';
+const ICON = {
+  play:   S + '<path d="M8 5.5v13l10.5-6.5z" fill="currentColor" stroke="none"/></svg>',
+  pause:  S + '<rect x="6.5" y="5.5" width="4" height="13" rx="1.2" fill="currentColor" stroke="none"/><rect x="13.5" y="5.5" width="4" height="13" rx="1.2" fill="currentColor" stroke="none"/></svg>',
+  back:   S + '<path d="M18 6l-8 6 8 6z" fill="currentColor" stroke="none"/><rect x="6" y="6" width="2.4" height="12" rx="1" fill="currentColor" stroke="none"/></svg>',
+  fwd:    S + '<path d="M6 6l8 6-8 6z" fill="currentColor" stroke="none"/><rect x="15.6" y="6" width="2.4" height="12" rx="1" fill="currentColor" stroke="none"/></svg>',
+  live:   S + '<circle cx="12" cy="12" r="3.5" fill="currentColor" stroke="none"/><path d="M7.5 7.5a6.4 6.4 0 0 0 0 9M16.5 7.5a6.4 6.4 0 0 1 0 9"/></svg>',
+  rec:    S + '<circle cx="12" cy="12" r="6.5" fill="currentColor" stroke="none"/></svg>',
+  stop:   S + '<rect x="6.5" y="6.5" width="11" height="11" rx="2" fill="currentColor" stroke="none"/></svg>',
+  clip:   S + '<path d="M12 4v10.5M7.5 10 12 14.5 16.5 10M5 19.5h14"/></svg>',
+  mirror: S + '<path d="M12 3v18" stroke-dasharray="2 3"/><path d="M9 7 3.5 17H9z"/><path d="M15 7l5.5 10H15z" fill="currentColor"/></svg>',
+  link:   S + '<path d="M10 14a4 4 0 0 0 5.7 0l3-3a4 4 0 0 0-5.7-5.7l-1 1"/><path d="M14 10a4 4 0 0 0-5.7 0l-3 3a4 4 0 0 0 5.7 5.7l1-1"/></svg>',
+  share:  S + '<path d="M12 3.5v11M7.5 8 12 3.5 16.5 8"/><path d="M6 11v9h12v-9"/></svg>',
+  check:  S + '<path d="M5 12.5l4.5 4.5L19 7.5"/></svg>',
+  copy:   S + '<rect x="8.5" y="8.5" width="11.5" height="11.5" rx="2"/><path d="M15.5 8.5V5a1 1 0 0 0-1-1H5a1 1 0 0 0-1 1v9.5a1 1 0 0 0 1 1h3.5"/></svg>',
+  paste:  S + '<rect x="5" y="5" width="14" height="16" rx="2"/><path d="M9 3.5h6v3H9z"/><path d="M9 12h6M9 16h4"/></svg>',
+  refresh:S + '<path d="M19.5 8.5A8 8 0 0 0 5 9M4.5 15.5A8 8 0 0 0 19 15"/><path d="M19.5 4v4.5H15M4.5 20v-4.5H9"/></svg>',
+  go:     S + '<path d="M5 12h13M13 6.5l5.5 5.5-5.5 5.5"/></svg>',
+  flip:   S + '<path d="M3.5 8.5h3l2-2.5h7l2 2.5h3V19h-17z"/><path d="M9.3 13.6a2.8 2.8 0 0 1 4.9-1.9M14.7 13a2.8 2.8 0 0 1-4.9 1.9"/><path d="M14.4 10.4v1.6h-1.6M9.6 16.2v-1.6h1.6"/></svg>',
+};
+document.querySelectorAll('[data-icon]').forEach(el => el.insertAdjacentHTML('afterbegin', ICON[el.dataset.icon]));
+$_initButtons();
+function $_initButtons(){
+  document.getElementById('btnPlay').innerHTML = ICON.pause + '<span>一時停止</span>';
+  document.getElementById('btnRec').innerHTML = ICON.rec + '<span>録画</span>';
+}
+</script>
+<script>
+
 /* ================= 設定 ================= */
 const MAX_SIDE = 960;        // 溜めるフレームの長辺(px)。上げると高画質・重くなる
 const FPS = 30;              // 溜めるフレーム数/秒
@@ -176,8 +371,14 @@ const TAG_OFFER = 'DLYCAM-OFFER:', TAG_ANSWER = 'DLYCAM-ANSWER:';
 const $ = id => document.getElementById(id);
 function show(id){ document.querySelectorAll('.screen').forEach(s => s.classList.toggle('active', s.id === id)); }
 function setupMsg(s){ $('setupMsgEl').textContent = s; }
-function camMsg(s){ $('camMsgEl').textContent = s; }
-function setStatus(s){ $('status').textContent = s; }
+function tone(s){
+  if (/送信中|受信中|遅延表示中/.test(s)) return 'ok';
+  if (/切断|失敗|エラー|できません|使えません|見つかりません|つながりません/.test(s)) return 'bad';
+  return 'wait';
+}
+function camMsg(s){ const el = $('camMsgEl'); el.querySelector('span').textContent = s; el.dataset.tone = tone(s); }
+function setStatus(s){ const el = $('status'); el.querySelector('span').textContent = s; el.dataset.tone = tone(s); el.style.display = s ? '' : 'none'; }
+function renderCode(c){ $('code').innerHTML = String(c).split('').map(d => '<span>' + d + '</span>').join(''); }
 function store(k, v){ try { if (v === undefined) return localStorage.getItem(k); localStorage.setItem(k, v); } catch(e){ return null; } }
 const hasPeerJS = () => typeof Peer !== 'undefined';
 
@@ -264,7 +465,7 @@ function randCode(){ return String(Math.floor(100000 + Math.random() * 900000));
 
 function startDisplayPeer(){
   if (displayPeer) { try { displayPeer.destroy(); } catch(e){} }
-  $('code').textContent = myCode;
+  renderCode(myCode);
   setupMsg('サーバーに接続中…');
   const p = new Peer(PREFIX + myCode);
   displayPeer = p;
@@ -326,7 +527,7 @@ async function showManualDisplay(){
   await waitIce(dpc);
   offerText = pack(TAG_OFFER, dpc.localDescription);
   $('copyOffer').disabled = false; $('pasteAnswer').disabled = false;
-  setupMsg('①を押してコピーしてください');
+  setupMsg('「1」を押してコピーしてください');
 }
 function showAutoDisplay(){
   $('setupManual').style.display = 'none'; $('setupAuto').style.display = 'flex';
@@ -335,7 +536,7 @@ function showAutoDisplay(){
 }
 async function acceptAnswer(){
   const ans = unpack(TAG_ANSWER, await readClip('answerInput'));
-  if (!ans) { setupMsg('撮影側の返事が見つかりません。撮影側で②を押してから、もう一度③を押してください'); return; }
+  if (!ans) { setupMsg('撮影側の返事が見つかりません。撮影側で「2」を押してから、もう一度「3」を押してください'); return; }
   try { await dpc.setRemoteDescription(ans); setupMsg('接続中…'); }
   catch(e){ setupMsg('接続に失敗しました: ' + e.message + '（「番号でつなぐ方式に戻る」→「手動でつなぐ」でやり直し）'); }
 }
@@ -449,7 +650,8 @@ function stepFrame(dir){
   shownT = -1; updatePlayUI();
 }
 function updatePlayUI(){
-  $('btnPlay').textContent = (!live && paused) ? '▶ 再生' : '⏸ 一時停止';
+  const isPaused = !live && paused;
+  $('btnPlay').innerHTML = (isPaused ? ICON.play : ICON.pause) + '<span>' + (isPaused ? '再生' : '一時停止') + '</span>';
   $('rate1').classList.toggle('on', rate === 1);
   $('rate05').classList.toggle('on', rate === 0.5);
   $('rate025').classList.toggle('on', rate === 0.25);
@@ -478,7 +680,7 @@ $('seek').addEventListener('input', ev => {
 $('seek').addEventListener('change', () => { seeking = false; });
 $('delay').addEventListener('input', e => {
   delayMs = parseFloat(e.target.value) * 1000;
-  $('delayVal').textContent = '遅延 ' + parseFloat(e.target.value).toFixed(1) + '秒';
+  $('delayVal').textContent = parseFloat(e.target.value).toFixed(1);
 });
 
 // ---- 録画（A：開始・停止） ----
@@ -497,12 +699,12 @@ function toggleRecord(){
   recChunks = [];
   recorder.ondataavailable = e => { if (e.data && e.data.size) recChunks.push(e.data); };
   recorder.onstop = () => {
-    $('btnRec').textContent = '● 録画開始'; $('recDot').style.display = 'none';
+    $('btnRec').innerHTML = ICON.rec + '<span>録画</span>'; $('btnRec').classList.remove('recording'); $('recDot').style.display = 'none';
     const type = recorder.mimeType || mime || 'video/mp4';
     offerSave(new Blob(recChunks, { type }), '録画');
   };
   recorder.start(1000);
-  $('btnRec').textContent = '■ 録画停止'; $('recDot').style.display = 'inline';
+  $('btnRec').innerHTML = ICON.stop + '<span>録画を止める</span>'; $('btnRec').classList.add('recording'); $('recDot').style.display = 'inline-flex';
 }
 
 // ---- 録画（B：直前◯秒を保存） ----
@@ -534,7 +736,7 @@ async function saveClip(){
       if (wait > 0) await new Promise(r => setTimeout(r, wait));
       const bmp = await createImageBitmap(clip[i].b);
       x.drawImage(bmp, 0, 0); if (bmp.close) bmp.close();
-      if (i % 15 === 0) btn.textContent = '作成中 ' + Math.floor(i / clip.length * 100) + '%';
+      if (i % 15 === 0) $('clipLabel').textContent = '作成中 ' + Math.floor(i / clip.length * 100) + '%';
     }
     await new Promise(r => setTimeout(r, 200));
     rec.stop(); await done;
@@ -543,7 +745,7 @@ async function saveClip(){
   } catch(e){
     setStatus('保存に失敗しました: ' + e.message);
   } finally {
-    exporting = false; btn.disabled = false; btn.textContent = '直前を保存';
+    exporting = false; btn.disabled = false; $('clipLabel').textContent = '直前を保存';
   }
 }
 
@@ -672,7 +874,7 @@ function showManualCamera(){
   camMode = 'manual'; clearTimeout(retryTimer);
   if (call) { const old = call; call = null; try { old.close(); } catch(e){} }
   $('camAuto').style.display = 'none'; $('camManual').style.display = 'flex';
-  camMsg('表示側で「手動でつなぐ」→①を押してから、ここで①を押してください');
+  camMsg('表示側で「手動でつなぐ」→「1」を押してから、ここで「1」を押してください');
 }
 function showAutoCamera(){
   camMode = 'auto';
@@ -684,7 +886,7 @@ function showAutoCamera(){
 async function acceptOffer(){
   if (!cameraAlive()) { try { await openCamera(); } catch(e){ camMsg('カメラを使えません'); return; } }
   const offer = unpack(TAG_OFFER, await readClip('offerInput'));
-  if (!offer) { camMsg('表示側のコードが見つかりません。表示側で①を押してから、もう一度①を押してください'); return; }
+  if (!offer) { camMsg('表示側のコードが見つかりません。表示側で「1」を押してから、もう一度「1」を押してください'); return; }
   if (cpc) cpc.close();
   cpc = new RTCPeerConnection(RTC_CONF);
   const pc = cpc;
@@ -702,7 +904,7 @@ async function acceptOffer(){
     answerText = pack(TAG_ANSWER, pc.localDescription);
     $('copyAnswer').disabled = false;
     $('offerInput').value = '';
-    camMsg('②を押してコピー → 表示側で③を押してください');
+    camMsg('「2」を押してコピー → 表示側で「3」を押してください');
   } catch(e){ camMsg('失敗しました: ' + e.message); }
 }
 
