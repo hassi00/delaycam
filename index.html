@@ -67,7 +67,8 @@
     background:rgba(15,27,45,.72);-webkit-backdrop-filter:blur(12px);backdrop-filter:blur(12px)}
   #zoomBar .seg{background:none;padding:0}
   #zoomBar .seg .btn{height:36px;padding:0 10px;font-size:14px}
-  #zoomVal{font-family:var(--num);font-weight:700;color:var(--amber);min-width:3.4em;text-align:right}
+  #zoomVal,.zval{font-family:var(--num);font-weight:700;color:var(--amber);min-width:3.4em;text-align:right}
+  .lbl{color:var(--mute);font-size:14px;min-width:150px}
   .card b{font-size:24px;font-weight:800}
   .card small{color:var(--mute);font-size:15px}
   .lag{display:flex;flex-direction:column;align-items:center;gap:6px;color:var(--amber);font-size:13px;font-weight:700}
@@ -262,6 +263,12 @@
         <option value="30">30秒</option>
         <option value="60">60秒</option>
       </select>
+    </div>
+    <div class="bar" id="camCtlRow" style="display:none">
+      <small class="lbl">撮影側のズーム</small>
+      <div id="rLens" class="seg" role="group" aria-label="撮影側のレンズ"></div>
+      <input id="rZoom" type="range" min="1" max="4" step="0.1" value="1" aria-label="撮影側のズーム">
+      <span id="rZoomVal" class="zval">1.0x</span>
     </div>
     <div class="bar">
       <div class="delay"><small>遅延</small><span id="delayVal">10.0</span><em>秒</em></div>
@@ -474,6 +481,11 @@ let frames = [];             // {t: 撮った時刻(ms), b: JPEG Blob}（古い�
 let encoding = 0, lastCap = 0, drawing = false, shownT = -1;
 let delayMs = 10000, loopStarted = false;
 let displayPeer = null, dpc = null, offerText = '', myCode = null;
+// 撮影側のカメラを操作する通り道（撮影側からつないできた相手とだけ）
+let manualCtl = null, ctlConns = {}, mediaPeerId = null, rDragging = false, rDragTimer = null, rSendTimer = null;
+// 命令を送る相手：手動接続ならそのチャネル、番号方式なら「映像を送ってきている撮影側」の接続だけ
+function getCtl(){ return manualCtl || (mediaPeerId && ctlConns[mediaPeerId]) || null; }
+function hideCamCtl(){ $('camCtlRow').style.display = 'none'; }
 
 // 再生状態：live=遅延ライブ表示 / それ以外は playhead を自分で進める
 let live = true, paused = false, rate = 1, playhead = 0, lastTick = 0;
@@ -514,7 +526,22 @@ function startDisplayPeer(){
     }
   });
   p.on('disconnected', () => { if (p === displayPeer) { try { p.reconnect(); } catch(e){} } });
+  p.on('connection', conn => {
+    conn.on('open', () => {
+      if (ctlConns[conn.peer] && ctlConns[conn.peer].conn !== conn) { try { ctlConns[conn.peer].conn.close(); } catch(e){} }
+      ctlConns[conn.peer] = { conn, send: o => { try { conn.send(o); } catch(e){} } };
+      if (conn.peer === mediaPeerId) ctlConns[conn.peer].send({ t: 'hello' });
+    });
+    conn.on('data', m => { if (conn.peer === mediaPeerId) onCtlMsg(m); });
+    conn.on('close', () => {
+      if (ctlConns[conn.peer] && ctlConns[conn.peer].conn === conn) delete ctlConns[conn.peer];
+      if (conn.peer === mediaPeerId) hideCamCtl();
+    });
+  });
   p.on('call', call => {
+    if (mediaPeerId !== call.peer) hideCamCtl();
+    mediaPeerId = call.peer;
+    if (ctlConns[call.peer]) ctlConns[call.peer].send({ t: 'hello' });
     call.answer();  // 表示側は受信のみ
     call.on('stream', s => onRemoteStream(s));
     call.on('close', () => onRemoteLost());
@@ -550,6 +577,10 @@ async function showManualDisplay(){
   if (dpc) return;
   dpc = new RTCPeerConnection(RTC_CONF);
   dpc.addTransceiver('video', { direction: 'recvonly' });
+  const ch = dpc.createDataChannel('ctl');
+  ch.onopen = () => { manualCtl = { send: o => { if (ch.readyState === 'open') ch.send(JSON.stringify(o)); } }; manualCtl.send({ t: 'hello' }); };
+  ch.onmessage = e => onCtlMsg(e.data);
+  ch.onclose = () => { manualCtl = null; hideCamCtl(); };
   dpc.ontrack = e => onRemoteStream(e.streams[0] || new MediaStream([e.track]));
   watchState(dpc, st => { if (st === 'failed' || st === 'disconnected') onRemoteLost(); });
   setupMsg('準備中…');
@@ -561,7 +592,7 @@ async function showManualDisplay(){
 }
 function showAutoDisplay(){
   $('setupManual').style.display = 'none'; $('setupAuto').style.display = 'flex';
-  if (dpc) { dpc.close(); dpc = null; }
+  if (dpc) { dpc.close(); dpc = null; manualCtl = null; hideCamCtl(); }
   setupMsg(hasPeerJS() ? '' : 'ネットにつながっていないため、番号方式は使えません');
 }
 async function acceptAnswer(){
@@ -668,6 +699,39 @@ function fit(){
 }
 addEventListener('resize', fit);
 out.addEventListener('click', () => $('panel').classList.toggle('hidden'));  // タップで操作パネル表示/非表示
+
+// ---- 撮影側カメラの遠隔操作（表示側） ----
+function onCtlMsg(m){
+  if (typeof m === 'string') { try { m = JSON.parse(m); } catch(e){ return; } }
+  if (!m || m.t !== 'caps') return;
+  const num = x => (typeof x === 'number' && isFinite(x)) ? x : null;
+  const min = num(m.min), max = num(m.max), step = num(m.step), z = num(m.zoom);
+  if (min === null || max === null || z === null) return;
+  $('camCtlRow').style.display = 'flex';
+  const r = $('rZoom');
+  r.min = min; r.max = max; r.step = step || 0.1;
+  if (!rDragging) { r.value = z; $('rZoomVal').textContent = z.toFixed(1) + 'x'; }
+  const box = $('rLens'); box.innerHTML = '';
+  const lenses = Array.isArray(m.lenses) ? m.lenses.filter(x => ['0.5x', '1x', '望遠'].includes(x)) : [];
+  box.style.display = lenses.length >= 2 ? '' : 'none';
+  lenses.forEach(name => {
+    const b = document.createElement('button');
+    b.className = 'btn' + (name === m.lens ? ' on' : '');
+    b.textContent = name;
+    b.onclick = () => { const c = getCtl(); if (c) c.send({ t: 'lens', name }); };
+    box.appendChild(b);
+  });
+}
+$('rZoom').addEventListener('input', e => {
+  rDragging = true; clearTimeout(rDragTimer);
+  const v = parseFloat(e.target.value);
+  $('rZoomVal').textContent = v.toFixed(1) + 'x';
+  if (!rSendTimer) rSendTimer = setTimeout(() => { rSendTimer = null; const c = getCtl(); if (c) c.send({ t: 'zoom', v: parseFloat($('rZoom').value) }); }, 80);
+});
+$('rZoom').addEventListener('change', () => {
+  const c = getCtl(); if (c) c.send({ t: 'zoom', v: parseFloat($('rZoom').value) });
+  rDragTimer = setTimeout(() => { rDragging = false; }, 600);
+});
 
 // ---- 再生操作 ----
 function leaveLive(){ if (live) { live = false; playhead = performance.now() - delayMs; } }
@@ -824,6 +888,7 @@ let camMode = 'auto';
 
 // stream = カメラそのものの映像 / sendStream = ズーム（切り抜き）後に送る映像（デジタルズーム中のみ）
 let devId = null, sendStream = null, zoomMode = 'digital', zoom = 1;
+let ctl = null, dataConn = null, lensList = [], capsTimer = null;   // 表示側からの操作用
 let zoomCanvas = null, zoomCtx = null, rawVid = null, zoomLoop = false;
 function currentSend(){ return sendStream || stream; }
 
@@ -862,6 +927,24 @@ function setZoom(v){
     const t = stream && stream.getVideoTracks()[0];
     if (t) t.applyConstraints({ advanced: [{ zoom: v }] }).catch(() => {});
   } else refreshSend();
+  scheduleCaps();
+}
+// 表示側へ、今のズーム・レンズの状態を知らせる
+function scheduleCaps(){ clearTimeout(capsTimer); capsTimer = setTimeout(sendCaps, 150); }
+function sendCaps(){
+  if (!ctl || !stream) return;
+  const z = $('zoom');
+  const cur = stream.getVideoTracks()[0].getSettings().deviceId;
+  const L = lensList.find(l => l.id === cur);
+  ctl.send({ t: 'caps', min: +z.min, max: +z.max, step: +z.step, zoom, lenses: lensList.map(l => l.name), lens: L ? L.name : null });
+}
+// 表示側からの命令：ズーム倍率とレンズ切替だけを受け付ける（値は範囲内に制限）
+function onCmd(m){
+  if (typeof m === 'string') { try { m = JSON.parse(m); } catch(e){ return; } }
+  if (!m || typeof m !== 'object') return;
+  if (m.t === 'zoom' && typeof m.v === 'number' && isFinite(m.v)) setZoom(m.v);
+  else if (m.t === 'lens' && typeof m.name === 'string') { const L = lensList.find(l => l.name === m.name); if (L) selectLens(L.id); }
+  else if (m.t === 'hello') sendCaps();
 }
 $('zoom').addEventListener('input', e => setZoom(parseFloat(e.target.value)));
 
@@ -934,6 +1017,8 @@ async function updateLenses(){
     if (!lenses.some(x => x.name === name)) lenses.push({ name, order, id: d.deviceId });
   }
   lenses.sort((a, b) => a.order - b.order);
+  lensList = lenses.length >= 2 ? lenses : [];
+  sendCaps();
   if (lenses.length < 2) { box.style.display = 'none'; return; }
   box.style.display = '';
   const cur = stream && stream.getVideoTracks()[0].getSettings().deviceId;
@@ -992,6 +1077,15 @@ async function connectAuto(){
   if (call) { const old = call; call = null; try { old.close(); } catch(e){} }
   const c = camPeer.call(PREFIX + code, currentSend());
   call = c;
+  if (dataConn) { try { dataConn.close(); } catch(e){} }
+  ctl = null;
+  const dc = camPeer.connect(PREFIX + code, { reliable: true, serialization: 'json' });
+  dataConn = dc;
+  if (dc) {
+    dc.on('open', () => { if (dc !== dataConn) return; ctl = { send: o => { try { dc.send(o); } catch(e){} } }; sendCaps(); });
+    dc.on('data', m => { if (dc === dataConn) onCmd(m); });
+    dc.on('close', () => { if (dc === dataConn) ctl = null; });
+  }
   if (!c) { scheduleRetry(); return; }
   c.on('close', () => { if (c === call) { camMsg('切断されました。再接続します…'); scheduleRetry(); } });
   const pcWait = setInterval(() => {
@@ -1047,6 +1141,13 @@ async function acceptOffer(){
   if (cpc) cpc.close();
   cpc = new RTCPeerConnection(RTC_CONF);
   const pc = cpc;
+  ctl = null;
+  pc.ondatachannel = e => {
+    const ch = e.channel;
+    ch.onopen = () => { if (pc !== cpc) return; ctl = { send: o => { if (ch.readyState === 'open') ch.send(JSON.stringify(o)); } }; sendCaps(); };
+    ch.onmessage = ev => { if (pc === cpc) onCmd(ev.data); };
+    ch.onclose = () => { if (pc === cpc) ctl = null; };
+  };
   watchState(pc, st => {
     if (pc !== cpc) return;
     if (st === 'connected' || st === 'completed') camMsg('送信中（手動接続）');
